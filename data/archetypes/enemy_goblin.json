@@ -1,0 +1,8 @@
+{
+  "id": "enemy_goblin",
+  "pools": ["transform", "velocity", "hitbox", "sprite"],
+  "initial_values": {
+    "hitbox": { "half_width": 8.0, "half_height": 8.0, "collision_layer": 2, "collision_mask": 1 },
+    "sprite": { "texture_id": 101, "frame_index": 0, "tint_r": 255, "tint_g": 255, "tint_b": 255, "tint_a": 255, "layer_z": 10 }
+  }
+}

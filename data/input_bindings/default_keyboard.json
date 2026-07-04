@@ -1,0 +1,9 @@
+{
+  "move_left": "KEY_A",
+  "move_right": "KEY_D",
+  "move_up": "KEY_W",
+  "move_down": "KEY_S",
+  "fire": "MOUSE_LEFT",
+  "dash": "KEY_SPACE",
+  "pause": "KEY_ESCAPE"
+}

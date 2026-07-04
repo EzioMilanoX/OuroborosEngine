@@ -1,0 +1,11 @@
+{
+  "track_id": "example_track",
+  "source_audio_file": "example_track.ogg",
+  "bpm": 128.0,
+  "generated_by": "ouroboros.rhythm.offline.audio_ai_processor",
+  "events": [
+    { "time_seconds": 1.875, "lane": 0, "threat_type": "rhythm_threat_basic" },
+    { "time_seconds": 2.34375, "lane": 1, "threat_type": "rhythm_threat_basic" },
+    { "time_seconds": 2.8125, "lane": 0, "threat_type": "rhythm_threat_basic" }
+  ]
+}
