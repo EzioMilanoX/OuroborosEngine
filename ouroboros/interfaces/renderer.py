@@ -6,6 +6,13 @@ from typing import Tuple
 
 import numpy as np
 
+# Formas primitivas resolvidas por `texture_ids` enquanto nao ha pipeline
+# de texturas (ROADMAP M3): o backend concreto desenha a forma; ids acima
+# de SHAPE_MAX ficam reservados para texturas reais no futuro.
+SHAPE_RECT = 0
+SHAPE_CIRCLE = 1
+SHAPE_MAX = 15
+
 
 class IRenderer(ABC):
     """
@@ -65,6 +72,29 @@ class IRenderer(ABC):
     def end_frame(self) -> None:
         """Apresenta o frame renderizado (flip/present) e sincroniza com vsync, se aplicavel."""
         ...
+
+    # ------------------------------------------------------------------
+    # Camada de APRESENTACAO (ROADMAP M1/M2): metodos NAO-abstratos com
+    # default no-op — backends que nao os suportam continuam validos
+    # (NullRenderer herda os no-ops). Sao chamados pela camada de cenas/
+    # UI, NUNCA de dentro de ISystem.update(): texto e overlays podem
+    # alocar (cache no adapter), o que a Constituicao proibe no gameplay.
+    # ------------------------------------------------------------------
+
+    def draw_text(self, x: float, y: float, text: str, size: int,
+                  rgba: Tuple[int, int, int, int],
+                  anchor: str = "topleft") -> None:
+        """Desenha texto em coordenadas de TELA (ignora camera offset).
+        `anchor`: topleft | center | topright. Default: no-op."""
+
+    def draw_ui_rect(self, x: float, y: float, w: float, h: float,
+                     rgba: Tuple[int, int, int, int]) -> None:
+        """Retangulo de UI/overlay com alpha, em coordenadas de tela
+        (paineis de menu, telegraphs, escurecimento). Default: no-op."""
+
+    def set_camera_offset(self, dx: float, dy: float) -> None:
+        """Deslocamento aplicado as posicoes de draw_batch (screen shake).
+        Nao afeta draw_text/draw_ui_rect. Default: no-op."""
 
     @abstractmethod
     def get_viewport_size(self) -> Tuple[int, int]:
