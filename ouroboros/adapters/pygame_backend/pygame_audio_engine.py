@@ -1,6 +1,7 @@
 """Implementacao concreta de IAudioEngine sobre pygame.mixer."""
 from __future__ import annotations
 
+import numpy as np
 import pygame
 
 from ouroboros.adapters.pygame_backend.pygame_audio_clock import PygameAudioClock
@@ -52,3 +53,33 @@ class PygameAudioEngine(IAudioEngine):
 
     def get_clock(self) -> IAudioClock:
         return self._clock
+
+    def register_tone(self, sound_id: str, kind: str = "square",
+                      freq: float = 440.0, duration: float = 0.12) -> None:
+        """SFX procedural (ROADMAP M4): sintetiza a forma de onda com
+        NumPy e registra como Sound — nenhum arquivo de audio necessario.
+        Chamar na composicao (aloca), nunca no loop de gameplay."""
+        init = pygame.mixer.get_init()
+        if init is None:
+            pygame.mixer.init()
+            init = pygame.mixer.get_init()
+        sample_rate, _fmt, channels = init
+        n = max(1, int(sample_rate * duration))
+        t = np.arange(n, dtype=np.float32) / sample_rate
+        env = np.exp(-t * (5.0 / max(duration, 1e-3)))     # decaimento
+        if kind == "noise":
+            base = np.random.default_rng(hash(sound_id) & 0xFFFF).uniform(
+                -1.0, 1.0, n).astype(np.float32)
+        elif kind == "sweep":                              # desce (explosao)
+            f = freq * (1.0 - 0.7 * t / max(duration, 1e-3))
+            base = np.sign(np.sin(2 * np.pi * np.cumsum(f) / sample_rate))
+        elif kind == "zap":                                # sobe (EMP)
+            f = freq * (1.0 + 2.5 * t / max(duration, 1e-3))
+            base = np.sin(2 * np.pi * np.cumsum(f) / sample_rate)
+        else:                                              # square
+            base = np.sign(np.sin(2 * np.pi * freq * t))
+        wave = (base * env * 0.5 * 32767).astype(np.int16)
+        if channels > 1:
+            wave = np.repeat(wave[:, None], channels, axis=1)
+        self._sounds[sound_id] = pygame.sndarray.make_sound(
+            np.ascontiguousarray(wave))

@@ -37,3 +37,15 @@ class IAudioEngine(ABC):
     def get_clock(self) -> IAudioClock:
         """Retorna o `IAudioClock` associado a faixa musical atualmente em reproducao."""
         ...
+
+    # ------------------------------------------------------------------
+    # SFX procedural (ROADMAP M4): metodo NAO-abstrato com default no-op —
+    # permite jogos sem assets de audio sintetizarem efeitos curtos.
+    # Chamado na composicao/cena (fora do loop de gameplay).
+    # ------------------------------------------------------------------
+
+    def register_tone(self, sound_id: str, kind: str = "square",
+                      freq: float = 440.0, duration: float = 0.12) -> None:
+        """Sintetiza e registra um efeito curto sob `sound_id`, tocavel
+        depois via `play_one_shot`. `kind`: square | noise | sweep | zap.
+        Default: no-op (backends sem suporte ignoram)."""
