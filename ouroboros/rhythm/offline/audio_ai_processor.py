@@ -60,10 +60,20 @@ class AudioAIProcessor:
         beatmap_validator: BeatmapValidator,
         beatmap_writer: BeatmapWriter,
         lane_count: int,
+        extraction_profile: str = None,
     ) -> None:
         """Injeta cada colaborador de etapa (permite substituir por
         dubles de teste sem tocar audio real nem disco) e `lane_count`
         usado para distribuir ameacas entre lanes.
+
+        `extraction_profile` (opcional): nome de um Perfil de Extracao
+        ("groove" | "vocal_shred" | "hybrid", ver
+        `extraction_profiles.py`). Quando definido, a etapa de extracao
+        usa o pipeline DSP do perfil (HPSS/mel filtrado/PLP ou
+        onset_detect agressivo) e cada ameaca gerada carrega a tag
+        `layer` da camada de origem; `None` mantem o caminho legado
+        (BpmExtractor + OnsetExtractor genericos), preservando o
+        comportamento historico e os testes existentes.
         """
         self._audio_loader = audio_loader
         self._bpm_extractor = bpm_extractor
@@ -71,6 +81,7 @@ class AudioAIProcessor:
         self._beatmap_validator = beatmap_validator
         self._beatmap_writer = beatmap_writer
         self._lane_count = lane_count
+        self._extraction_profile = extraction_profile
 
     def process(self, audio_path: Path, beatmap_output_path: Path, track_id: str) -> AudioAIProcessorResult:
         """Executa o pipeline completo para `audio_path` e grava o
@@ -84,7 +95,10 @@ class AudioAIProcessor:
         audio = self._audio_loader.load(audio_path)
         bpm_result = self._bpm_extractor.extract(audio)
         onset_result = self._onset_extractor.extract(audio)
-        threats = self._map_onsets_to_threats(onset_result, bpm_result)
+        if self._extraction_profile is not None:
+            threats = self._map_profile_layers_to_threats(audio)
+        else:
+            threats = self._map_onsets_to_threats(onset_result, bpm_result)
         beatmap_dict = self._beatmap_validator.build_beatmap_dict(
             track_id=track_id,
             bpm=bpm_result.bpm,
@@ -99,6 +113,31 @@ class AudioAIProcessor:
             beatmap_path=beatmap_output_path,
             threat_count=len(threats),
         )
+
+    def _map_profile_layers_to_threats(self, audio) -> Tuple[ScheduledThreatDefinition, ...]:
+        """Mapeia as camadas do Perfil de Extracao ativo em ameacas
+        agendadas, cada uma com a tag `layer` da camada de origem
+        ("kick"/"vocal"). Mantem a heuristica deliberadamente simples da
+        engine (lane ciclica por camada); curadoria fina e interpretacao
+        espacial pertencem ao produto."""
+        from ouroboros.rhythm.offline.extraction_profiles import extract_with_profile
+
+        result = extract_with_profile(audio, self._extraction_profile)
+        threats = []
+        for extraction_layer in result.layers:
+            times = extraction_layer.onset_timestamps_seconds
+            strengths = extraction_layer.onset_strengths
+            for i in range(times.shape[0]):
+                threats.append(
+                    ScheduledThreatDefinition(
+                        timestamp_seconds=float(times[i]),
+                        threat_type="rhythm_threat_basic",
+                        lane=i % self._lane_count,
+                        strength=float(min(max(strengths[i], 0.0), 1.0)),
+                        layer=extraction_layer.layer,
+                    )
+                )
+        return tuple(sorted(threats, key=lambda threat: threat.timestamp_seconds))
 
     def _map_onsets_to_threats(
         self,

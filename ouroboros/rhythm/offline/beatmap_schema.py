@@ -35,12 +35,15 @@ class ScheduledThreatDefinition:
         lane: indice de lane/pista onde a ameaca deve aparecer.
         strength: intensidade normalizada (`0.0`-`1.0`), derivada de
             `OnsetExtractionResult.onset_strengths`.
+        layer: tag OPCIONAL da camada de extracao ("kick"/"vocal" nos
+            Perfis de Extracao; "" = sem camada, comportamento legado).
     """
 
     timestamp_seconds: float
     threat_type: str
     lane: int
     strength: float
+    layer: str = ""
 
 
 class BeatmapValidator:
@@ -119,6 +122,10 @@ class BeatmapValidator:
             if not isinstance(strength, (int, float)) or isinstance(strength, bool) or not (0.0 <= float(strength) <= 1.0):
                 raise BeatmapValidationError(f"threats[{i}].strength must be within [0.0, 1.0], got {strength!r}")
 
+            layer = threat.get("layer", "")
+            if not isinstance(layer, str):
+                raise BeatmapValidationError(f"threats[{i}].layer must be a string when present, got {layer!r}")
+
             if previous_timestamp is not None and timestamp_seconds < previous_timestamp:
                 raise BeatmapValidationError(
                     f"threats[{i}].timestamp_seconds ({timestamp_seconds}) is out of order "
@@ -151,6 +158,7 @@ class BeatmapValidator:
                     "threat_type": threat.threat_type,
                     "lane": int(threat.lane),
                     "strength": float(threat.strength),
+                    "layer": str(getattr(threat, "layer", "")),
                 }
                 for threat in sorted_threats
             ],

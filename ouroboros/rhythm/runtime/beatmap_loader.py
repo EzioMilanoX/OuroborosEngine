@@ -45,12 +45,25 @@ class BeatmapLoader:
     estruturado contiguo, alocado uma vez.
     """
 
-    def __init__(self, threat_type_name_to_id: Dict[str, int]) -> None:
+    DEFAULT_LAYER_NAME_TO_ID: Dict[str, int] = {"": 0, "kick": 0, "vocal": 1}
+    """Mapeamento padrao da tag opcional `layer` (Perfis de Extracao)
+    para o inteiro de `SCHEDULED_THREAT_DTYPE['layer']`. Camada
+    desconhecida cai em 0 (comportamento legado, nunca um erro)."""
+
+    def __init__(
+        self,
+        threat_type_name_to_id: Dict[str, int],
+        layer_name_to_id: Dict[str, int] = None,
+    ) -> None:
         """Recebe o mapeamento (data-driven, carregado antes deste ponto)
         de nome de tipo de ameaca (string, como aparece no JSON) para o
-        inteiro usado em `SCHEDULED_THREAT_DTYPE['threat_type']`.
+        inteiro usado em `SCHEDULED_THREAT_DTYPE['threat_type']`, e
+        opcionalmente o mapeamento das tags de camada.
         """
         self._threat_type_name_to_id = dict(threat_type_name_to_id)
+        self._layer_name_to_id = dict(
+            layer_name_to_id if layer_name_to_id is not None else self.DEFAULT_LAYER_NAME_TO_ID
+        )
 
     def load(self, beatmap_path: Path) -> np.ndarray:
         """Le e desserializa `beatmap_path`, valida a versao de schema
@@ -107,6 +120,7 @@ class BeatmapLoader:
             scheduled_threats[row_index]["threat_type"] = self._threat_type_name_to_id[threat["threat_type"]]
             scheduled_threats[row_index]["lane"] = threat["lane"]
             scheduled_threats[row_index]["strength"] = threat["strength"]
+            scheduled_threats[row_index]["layer"] = self._layer_name_to_id.get(threat.get("layer", ""), 0)
             scheduled_threats[row_index]["has_spawned"] = False
 
         return scheduled_threats

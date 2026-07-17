@@ -68,6 +68,18 @@ def build_arg_parser() -> argparse.ArgumentParser:
         action="store_false",
         help="Desabilita backtracking de onset.",
     )
+    parser.add_argument(
+        "--profile",
+        choices=["groove", "vocal_shred", "hybrid"],
+        default=None,
+        help=(
+            "Perfil de Extracao DSP: 'groove' (HPSS percussivo + mel grave + PLP; "
+            "faixas guiadas por bumbo), 'vocal_shred' (HPSS harmonico + mel medio/agudo + "
+            "onset_detect agressivo; melodias/sincopa estilo FNF) ou 'hybrid' "
+            "(ambas as camadas, taggeadas com 'layer' kick/vocal no beatmap). "
+            "Omitido: extracao legada."
+        ),
+    )
     return parser
 
 
@@ -82,6 +94,7 @@ def build_processor(args: argparse.Namespace) -> AudioAIProcessor:
         beatmap_validator=BeatmapValidator(),
         beatmap_writer=BeatmapWriter(BeatmapValidator()),
         lane_count=args.lanes,
+        extraction_profile=args.profile,
     )
 
 

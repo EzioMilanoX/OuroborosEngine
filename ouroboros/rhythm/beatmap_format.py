@@ -28,3 +28,11 @@ REQUIRED_ROOT_FIELDS: Tuple[str, ...] = ("version", "track_id", "bpm", "threats"
 
 REQUIRED_THREAT_FIELDS: Tuple[str, ...] = ("timestamp_seconds", "threat_type", "lane", "strength")
 """Campos obrigatorios de cada entrada da lista `threats` do documento."""
+
+OPTIONAL_THREAT_FIELDS: Tuple[str, ...] = ("layer",)
+"""Campos OPCIONAIS de cada ameaca. `layer` (string, ex.: "kick"/"vocal")
+identifica a CAMADA de extracao que gerou o evento nos Perfis de
+Extracao multi-layer ("hybrid") -- o produto roteia por ela (ex.: kicks
+nas extremidades, vocais no centro). Beatmaps antigos, sem o campo,
+continuam validos: o schema permanece uniforme, apenas com uma
+propriedade adicional."""
