@@ -53,3 +53,19 @@ class IInputProvider(ABC):
     def wants_quit(self) -> bool:
         """True se o backend recebeu um pedido nativo de encerramento da aplicacao."""
         ...
+
+    @abstractmethod
+    def set_rumble(self, low_freq: float, high_freq: float, duration_sec: float) -> None:
+        """Dispara vibracao (haptics/rumble) no controle fisico, se o
+        backend/dispositivo suportar -- NUNCA levanta erro na ausencia de
+        hardware compativel (controle desconectado, backend sem suporte a
+        force feedback): vira um no-op silencioso, o mesmo criterio de
+        `poll()` nao levantar erro sem dispositivo de audio.
+
+        `low_freq`/`high_freq` sao intensidades `0.0..1.0` dos dois motores
+        (grave/agudo, convencao padrao de controles modernos -- DualShock/
+        Xbox); `duration_sec` e a duracao em segundos. Chamado no MAXIMO
+        uma vez por evento de feedback (nunca em loop quente); nucleo/
+        produtos nao sabem que existe um `pygame.joystick` por baixo (a
+        mesma regra de abstracao de `is_action_held`)."""
+        ...

@@ -76,6 +76,11 @@ def test_pygame_input_provider_resolves_and_polls_bindings(bindings_path):
     assert provider.wants_quit() is False
 
 
+def test_pygame_input_provider_set_rumble_is_a_silent_noop_without_a_joystick():
+    provider = PygameInputProvider()
+    provider.set_rumble(1.0, 1.0, 0.1)  # nao ha controle conectado -- nunca levanta
+
+
 def test_pygame_input_provider_rejects_unknown_binding_code(tmp_path):
     path = tmp_path / "bad_bindings.json"
     path.write_text(json.dumps({"fire": "GAMEPAD_A"}), encoding="utf-8")

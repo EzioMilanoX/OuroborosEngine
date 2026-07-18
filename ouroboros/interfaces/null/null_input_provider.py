@@ -17,6 +17,7 @@ class NullInputProvider(IInputProvider):
         self._previous_held = {}
         self._axes = {}
         self._wants_quit = False
+        self._last_rumble = None
 
     def load_bindings(self, bindings_path: str) -> None:
         pass
@@ -39,6 +40,13 @@ class NullInputProvider(IInputProvider):
 
     def wants_quit(self) -> bool:
         return self._wants_quit
+
+    def set_rumble(self, low_freq: float, high_freq: float, duration_sec: float) -> None:
+        """Nunca vibra de verdade (nao ha hardware); apenas GRAVA a
+        ultima chamada em `self._last_rumble` para testes inspecionarem
+        (mesmo criterio de `_staged_held`/`_axes` -- estado primitivo,
+        sem callback nem objeto de evento)."""
+        self._last_rumble = (float(low_freq), float(high_freq), float(duration_sec))
 
     # -- metodos auxiliares de teste, fora do contrato de IInputProvider --
 

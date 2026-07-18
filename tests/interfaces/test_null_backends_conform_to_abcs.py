@@ -40,6 +40,12 @@ def test_null_input_provider_is_a_real_iinputprovider(null_input_provider):
     assert null_input_provider.is_action_held("fire") is False
 
 
+def test_null_input_provider_records_rumble_without_hardware(null_input_provider):
+    assert null_input_provider._last_rumble is None
+    null_input_provider.set_rumble(0.5, 1.0, 0.2)
+    assert null_input_provider._last_rumble == (0.5, 1.0, 0.2)
+
+
 def test_null_audio_engine_is_a_real_iaudioengine(null_audio_engine):
     assert isinstance(null_audio_engine, IAudioEngine)
     clock = null_audio_engine.get_clock()

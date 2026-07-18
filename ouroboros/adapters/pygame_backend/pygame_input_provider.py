@@ -27,6 +27,8 @@ class PygameInputProvider(IInputProvider):
         self._previous_held = {}
         self._axes = {}
         self._wants_quit = False
+        self._joystick = None
+        self._joystick_probed = False
 
     def load_bindings(self, bindings_path: str) -> None:
         with open(bindings_path, "r", encoding="utf-8") as f:
@@ -72,3 +74,40 @@ class PygameInputProvider(IInputProvider):
 
     def wants_quit(self) -> bool:
         return self._wants_quit
+
+    def _resolve_joystick(self):
+        """Resolve (e cacheia) o primeiro joystick/controle conectado sob
+        demanda -- NUNCA no construtor, para nao pagar o custo de sondar
+        hardware em jogos que nunca chamam `set_rumble`. `None` se nao
+        houver controle ou o subsistema nao inicializar (teclado/mouse
+        continuam funcionando normalmente)."""
+        if self._joystick_probed:
+            return self._joystick
+        self._joystick_probed = True
+        try:
+            if not pygame.joystick.get_init():
+                pygame.joystick.init()
+            if pygame.joystick.get_count() > 0:
+                self._joystick = pygame.joystick.Joystick(0)
+                self._joystick.init()
+        except pygame.error:
+            self._joystick = None
+        return self._joystick
+
+    def set_rumble(self, low_freq: float, high_freq: float, duration_sec: float) -> None:
+        """Aciona os dois motores de vibracao do primeiro controle
+        conectado (`Joystick.rumble`, pygame-ce); no-op silencioso sem
+        controle, sem suporte a force feedback do driver/SO, ou em
+        qualquer outro erro de hardware -- vibracao e feedback cosmetico,
+        nunca pode derrubar o loop de jogo."""
+        joystick = self._resolve_joystick()
+        if joystick is None:
+            return
+        try:
+            joystick.rumble(
+                max(0.0, min(1.0, low_freq)),
+                max(0.0, min(1.0, high_freq)),
+                int(max(0.0, duration_sec) * 1000.0),
+            )
+        except pygame.error:
+            pass
