@@ -5,7 +5,7 @@ description = "Engine hibrida, orientada a dados e Zero-GC no gameplay, para um 
 requires-python = ">=3.11"
 dependencies = [
     "numpy>=1.26",
-    "pygame>=2.5",
+    "pygame-ce>=2.5",
     "librosa>=0.10",
 ]
 
