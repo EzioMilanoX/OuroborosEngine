@@ -1,3 +1,7 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 """Carrega um arquivo de audio bruto em memoria, normalizado para as etapas de extracao."""
 from __future__ import annotations
 

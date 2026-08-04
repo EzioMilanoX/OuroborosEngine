@@ -1,3 +1,7 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 """Contrato de captura de input (IInputProvider), abstraido por nome de acao data-driven."""
 from __future__ import annotations
 

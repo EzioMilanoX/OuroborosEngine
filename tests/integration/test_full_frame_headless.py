@@ -1,3 +1,7 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 """
 Integracao ponta-a-ponta do laco de frame (GameLoop -> World.step ->
 IRenderer) usando exclusivamente os backends Null (Pilar 2), sem

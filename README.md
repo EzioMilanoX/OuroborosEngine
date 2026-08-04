@@ -36,3 +36,11 @@ escrita em Python, servindo de base para dois produtos distintos:
 Esqueleto inicial: apenas assinaturas de classes/metodos com docstrings
 explicando responsabilidade e invariantes — nenhum corpo de metodo
 implementado ainda.
+
+## Licenca
+
+Licenciado sob a [Mozilla Public License 2.0](LICENSE) (MPL-2.0). Copyleft
+por arquivo: qualquer arquivo desta engine que voce modificar e distribuir
+deve continuar sob MPL-2.0, mas jogos construidos sobre a engine (em
+arquivos proprios, importando `ouroboros`) podem ser fechados/comerciais
+livremente.
