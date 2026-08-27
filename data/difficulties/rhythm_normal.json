@@ -1,0 +1,12 @@
+{
+  "name": "rhythm_normal",
+  "perfect_window_seconds": 0.05,
+  "good_window_seconds": 0.10,
+  "miss_window_seconds": 0.15,
+  "scroll_speed_px_per_sec": 400.0,
+  "approach_seconds": 1.5,
+  "output_latency_seconds": 0.06,
+  "points_perfect": 300,
+  "points_good": 100,
+  "points_miss": 0
+}

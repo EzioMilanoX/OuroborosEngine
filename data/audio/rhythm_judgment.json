@@ -1,0 +1,5 @@
+{
+  "judgment_perfect": {"type": "tone", "kind": "zap", "freq": 1200.0, "duration": 0.06},
+  "judgment_good":    {"type": "tone", "kind": "square", "freq": 700.0, "duration": 0.08},
+  "judgment_miss":    {"type": "tone", "kind": "noise", "freq": 200.0, "duration": 0.12}
+}

@@ -1,0 +1,6 @@
+{
+  "id": "rhythm_note",
+  "pools": ["transform", "sprite", "lane", "threat_type", "note_state"],
+  "note": "Sem velocity/hitbox de proposito: julgamento de acerto e por TEMPO (via IAudioClock), nao por colisao espacial. `lane`/`threat_type`/`note_state` sao pools especificas do Jogo Musical, nao fazem parte de COMPONENT_SCHEMAS -- registradas por games/rhythm_game/composition.py.",
+  "initial_values_note": "ArchetypeLoader.initial_values nao e aplicado automaticamente por World.create_entity hoje (gap pre-existente do motor) -- a aparencia real (texture_id/tint/scale) e escrita pelo callback on_note_spawned em composition.py, nao a partir deste JSON."
+}
