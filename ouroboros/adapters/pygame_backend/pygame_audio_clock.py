@@ -22,6 +22,19 @@ class PygameAudioClock(IAudioClock):
     instancia para que `now_seconds()` reflita a posicao ABSOLUTA na
     faixa, nao apenas o tempo decorrido desde o inicio desta chamada de
     reproducao.
+
+    `now_seconds()` so confia em `get_pos()` quando `is_playing()`
+    (`get_busy()`) e verdadeiro. Isso NAO e defensivo por excesso de
+    cautela: confirmado empiricamente que o driver "dummy" do SDL usado
+    em testes headless deixa `get_pos()` com um valor positivo e
+    crescente "sujo" mesmo depois de `stop()`/`pygame.quit()`/reinit do
+    mixer, MESMO quando nada esta tocando (`get_busy()` volta
+    corretamente a `False`, `get_pos()` nao). Sem esta guarda,
+    `now_seconds()` de um clock que nunca tocou nada NESTA sessao mas
+    roda no mesmo processo que ja tocou algo antes (comum em testes)
+    reportaria um tempo de reproducao falso, positivo e crescente --
+    quebrando o contrato de `IAudioClock` ("tempo REAL de reproducao,
+    nunca um acumulador").
     """
 
     def __init__(self) -> None:
@@ -34,6 +47,8 @@ class PygameAudioClock(IAudioClock):
         self._start_offset_seconds = start_offset_seconds
 
     def now_seconds(self) -> float:
+        if not self.is_playing():
+            return 0.0
         pos_ms = pygame.mixer.music.get_pos()
         if pos_ms < 0:
             return 0.0

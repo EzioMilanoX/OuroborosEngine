@@ -5,7 +5,7 @@
 """Dispara criacao de entidades de ameaca em sincronia com o audio real, via IAudioClock."""
 from __future__ import annotations
 
-from typing import Optional
+from typing import Callable, Optional
 
 import numpy as np
 
@@ -102,6 +102,9 @@ class RhythmSpawnerSystem(ISystem):
         lane_pool_name: str,
         threat_type_pool_name: str,
         max_threats_per_frame: Optional[int] = None,
+        note_state_pool_name: Optional[str] = None,
+        on_note_spawned: Optional[Callable[[World, PackedEntityId, int, int], None]] = None,
+        hit_times: Optional[np.ndarray] = None,
     ) -> None:
         """Injeta o `IAudioClock` (referencia fixa, nunca trocada apos a
         construcao) e o array `SCHEDULED_THREAT_DTYPE` pre-carregado e
@@ -111,6 +114,46 @@ class RhythmSpawnerSystem(ISystem):
         `hitbox`) onde os campos `lane`/`threat_type` de cada
         ameaca disparada sao escritos apos `create_entity`.
 
+        `note_state_pool_name` (opcional, default `None`): nome de uma
+        pool ESPECIFICA do produto com dtype `NOTE_STATE_DTYPE`
+        (`ouroboros.rhythm.runtime.schemas`). Se fornecido, cada nota
+        disparada tambem grava ali seu proprio `timestamp_seconds` e
+        `packed_entity_id`, para consumo por sistemas posteriores (ex.:
+        `NoteScrollSystem`, `JudgmentSystem`) que precisam saber o
+        tempo-alvo/handle de UMA entidade especifica sem re-consultar
+        `scheduled_threats`. Omitir preserva o comportamento antigo
+        (nenhuma escrita adicional).
+
+        `on_note_spawned` (opcional, default `None`): callback chamado
+        UMA VEZ por nota disparada, como `(world, packed_entity_id,
+        lane, threat_type)`, DEPOIS que `lane`/`threat_type`/
+        `note_state` (se houver) ja foram gravados. Este sistema
+        deliberadamente NUNCA escreve em `transform`/`sprite` (nao sabe
+        nada sobre aparencia/posicionamento) -- `on_note_spawned` e o
+        unico jeito do chamador inicializar esses campos (ex.:
+        `texture_id`, `tint_rgba`, `scale`, `layer_z`); sem isso, uma
+        nota fica com `tint_a == 0` (zerado por padrao) e
+        `IRenderer.draw_batch` a ignora silenciosamente -- invisivel
+        para sempre. Chamar um callback ja existente nao aloca um novo
+        objeto Python (a Regra 1 proibe INSTANCIAR objetos no hot-path,
+        nao invocar callables ja existentes), entao isto continua
+        Zero-GC-seguro.
+
+        `hit_times` (opcional, default `None`): array paralelo a
+        `scheduled_threats` (MESMO indice de linha), contendo o
+        instante de ACERTO real de cada evento -- distinto do instante
+        de SPAWN usado por `scheduled_threats['timestamp_seconds']`
+        para decidir quando disparar. Existe para o caso de
+        `scheduled_threats` ja ter sido deslocado para tras (ex.: via
+        `ouroboros.rhythm.runtime.approach_schedule.split_spawn_and_hit_schedules`)
+        para dar tempo de reacao ao jogador antes do acerto -- sem
+        `hit_times`, uma nota so nasceria no proprio instante do
+        acerto, sem nenhum tempo de scroll/reacao visivel. Quando
+        fornecido, `note_state_pool_name` (se tambem fornecido) grava
+        `hit_times[row_index]` em vez de
+        `scheduled_threats[row_index]['timestamp_seconds']`. Omitir
+        preserva o comportamento antigo (spawn-time == hit-time).
+
         Inicializa `self._next_pending_index = 0`.
         """
         self._audio_clock = audio_clock
@@ -119,6 +162,9 @@ class RhythmSpawnerSystem(ISystem):
         self._lane_pool_name = lane_pool_name
         self._threat_type_pool_name = threat_type_pool_name
         self._max_threats_per_frame = max_threats_per_frame
+        self._note_state_pool_name = note_state_pool_name
+        self._on_note_spawned = on_note_spawned
+        self._hit_times = hit_times
         self._next_pending_index = 0
 
     @property
@@ -222,7 +268,22 @@ class RhythmSpawnerSystem(ISystem):
         threat_type_row = threat_type_pool.dense_row_of(entity_index)
 
         scheduled_row = self._scheduled_threats[row_index]
-        lane_pool.active_view()["lane"][lane_row] = scheduled_row["lane"]
-        threat_type_pool.active_view()["threat_type"][threat_type_row] = scheduled_row["threat_type"]
+        lane_value = scheduled_row["lane"]
+        threat_type_value = scheduled_row["threat_type"]
+        lane_pool.active_view()["lane"][lane_row] = lane_value
+        threat_type_pool.active_view()["threat_type"][threat_type_row] = threat_type_value
+
+        if self._note_state_pool_name is not None:
+            note_state_pool = world.get_pool(self._note_state_pool_name)
+            note_state_row = note_state_pool.dense_row_of(entity_index)
+            note_state_view = note_state_pool.active_view()
+            if self._hit_times is not None:
+                note_state_view["timestamp_seconds"][note_state_row] = self._hit_times[row_index]
+            else:
+                note_state_view["timestamp_seconds"][note_state_row] = scheduled_row["timestamp_seconds"]
+            note_state_view["packed_entity_id"][note_state_row] = packed_entity_id
+
+        if self._on_note_spawned is not None:
+            self._on_note_spawned(world, packed_entity_id, int(lane_value), int(threat_type_value))
 
         return packed_entity_id

@@ -14,11 +14,12 @@ from __future__ import annotations
 
 import numpy as np
 
+from ouroboros.core.memory.handles import unpack_index
 from ouroboros.core.memory.memory_manager import MemoryManager
 from ouroboros.core.world import World
 from ouroboros.interfaces.audio_clock import IAudioClock
 from ouroboros.rhythm.runtime.rhythm_spawner_system import RhythmSpawnerSystem
-from ouroboros.rhythm.runtime.schemas import SCHEDULED_THREAT_DTYPE
+from ouroboros.rhythm.runtime.schemas import NOTE_STATE_DTYPE, SCHEDULED_THREAT_DTYPE
 
 LANE_POOL_NAME = "lane"
 THREAT_TYPE_POOL_NAME = "threat_type"
@@ -195,3 +196,146 @@ def test_empty_scheduled_threats_is_immediately_finished(memory_manager, world, 
 
     assert system.next_pending_index == 0
     assert world.get_pool(LANE_POOL_NAME).count == 0
+
+
+NOTE_STATE_POOL_NAME = "note_state"
+
+
+def test_note_state_pool_name_writes_timestamp_and_packed_id(memory_manager, world, null_audio_clock):
+    memory_manager.create_pool(LANE_POOL_NAME, np.dtype([("lane", np.int8)]))
+    memory_manager.create_pool(THREAT_TYPE_POOL_NAME, np.dtype([("threat_type", np.int16)]))
+    memory_manager.create_pool(NOTE_STATE_POOL_NAME, NOTE_STATE_DTYPE)
+    world.register_archetype(ARCHETYPE_NAME, (LANE_POOL_NAME, THREAT_TYPE_POOL_NAME, NOTE_STATE_POOL_NAME))
+
+    scheduled_threats = _build_scheduled_threats()
+    system = RhythmSpawnerSystem(
+        audio_clock=null_audio_clock,
+        scheduled_threats=scheduled_threats,
+        threat_archetype_name=ARCHETYPE_NAME,
+        lane_pool_name=LANE_POOL_NAME,
+        threat_type_pool_name=THREAT_TYPE_POOL_NAME,
+        note_state_pool_name=NOTE_STATE_POOL_NAME,
+    )
+
+    null_audio_clock.advance(1.2)  # dispara o primeiro evento (timestamp 1.0)
+    system.update(world, delta_time=0.016)
+
+    note_state_pool = world.get_pool(NOTE_STATE_POOL_NAME)
+    assert note_state_pool.count == 1
+    row = note_state_pool.active_view()[0]
+    assert float(row["timestamp_seconds"]) == 1.0
+
+    lane_pool = world.get_pool(LANE_POOL_NAME)
+    spawned_entity_index = lane_pool.active_entity_indices()[0]
+    assert unpack_index(int(row["packed_entity_id"])) == spawned_entity_index
+
+
+def test_note_state_pool_name_omitted_leaves_pool_untouched(memory_manager, world, null_audio_clock):
+    """Comportamento antigo (sem `note_state_pool_name`) continua identico -- nenhuma pool extra e tocada."""
+    memory_manager.create_pool(LANE_POOL_NAME, np.dtype([("lane", np.int8)]))
+    memory_manager.create_pool(THREAT_TYPE_POOL_NAME, np.dtype([("threat_type", np.int16)]))
+    world.register_archetype(ARCHETYPE_NAME, (LANE_POOL_NAME, THREAT_TYPE_POOL_NAME))
+
+    scheduled_threats = _build_scheduled_threats()
+    system = _make_system(null_audio_clock, scheduled_threats)
+
+    null_audio_clock.advance(1.2)
+    system.update(world, delta_time=0.016)  # nao deve levantar erro por falta de note_state_pool_name
+
+    assert world.get_pool(LANE_POOL_NAME).count == 1
+
+
+def test_hit_times_overrides_timestamp_written_to_note_state(memory_manager, world, null_audio_clock):
+    """Quando `hit_times` e fornecido, `note_state` grava o tempo de ACERTO
+    real (nao o timestamp de spawn de `scheduled_threats`) -- prova de que
+    a separacao spawn-cue vs hit-time funciona."""
+    memory_manager.create_pool(LANE_POOL_NAME, np.dtype([("lane", np.int8)]))
+    memory_manager.create_pool(THREAT_TYPE_POOL_NAME, np.dtype([("threat_type", np.int16)]))
+    memory_manager.create_pool(NOTE_STATE_POOL_NAME, NOTE_STATE_DTYPE)
+    world.register_archetype(ARCHETYPE_NAME, (LANE_POOL_NAME, THREAT_TYPE_POOL_NAME, NOTE_STATE_POOL_NAME))
+
+    # scheduled_threats carrega os tempos de SPAWN (ja deslocados); hit_times
+    # carrega os tempos de ACERTO reais, paralelos linha a linha.
+    scheduled_threats = _build_scheduled_threats()  # timestamps de spawn: 1.0, 2.0, 3.0, 5.0
+    hit_times = np.array([2.5, 3.5, 4.5, 6.5], dtype=np.float64)  # tempos de acerto reais
+    system = RhythmSpawnerSystem(
+        audio_clock=null_audio_clock,
+        scheduled_threats=scheduled_threats,
+        threat_archetype_name=ARCHETYPE_NAME,
+        lane_pool_name=LANE_POOL_NAME,
+        threat_type_pool_name=THREAT_TYPE_POOL_NAME,
+        note_state_pool_name=NOTE_STATE_POOL_NAME,
+        hit_times=hit_times,
+    )
+
+    null_audio_clock.advance(1.2)  # dispara o primeiro evento (timestamp de spawn 1.0)
+    system.update(world, delta_time=0.016)
+
+    note_state_pool = world.get_pool(NOTE_STATE_POOL_NAME)
+    assert note_state_pool.count == 1
+    row = note_state_pool.active_view()[0]
+    assert float(row["timestamp_seconds"]) == 2.5, "deve gravar o hit_time real, nao o timestamp de spawn"
+
+
+def test_hit_times_omitted_preserves_old_behavior(memory_manager, world, null_audio_clock):
+    """Sem `hit_times` (default None), `note_state` continua gravando o
+    proprio `timestamp_seconds` de `scheduled_threats` -- comportamento
+    antigo, identico a `test_note_state_pool_name_writes_timestamp_and_packed_id`."""
+    memory_manager.create_pool(LANE_POOL_NAME, np.dtype([("lane", np.int8)]))
+    memory_manager.create_pool(THREAT_TYPE_POOL_NAME, np.dtype([("threat_type", np.int16)]))
+    memory_manager.create_pool(NOTE_STATE_POOL_NAME, NOTE_STATE_DTYPE)
+    world.register_archetype(ARCHETYPE_NAME, (LANE_POOL_NAME, THREAT_TYPE_POOL_NAME, NOTE_STATE_POOL_NAME))
+
+    scheduled_threats = _build_scheduled_threats()
+    system = RhythmSpawnerSystem(
+        audio_clock=null_audio_clock,
+        scheduled_threats=scheduled_threats,
+        threat_archetype_name=ARCHETYPE_NAME,
+        lane_pool_name=LANE_POOL_NAME,
+        threat_type_pool_name=THREAT_TYPE_POOL_NAME,
+        note_state_pool_name=NOTE_STATE_POOL_NAME,
+    )
+
+    null_audio_clock.advance(1.2)
+    system.update(world, delta_time=0.016)
+
+    note_state_pool = world.get_pool(NOTE_STATE_POOL_NAME)
+    row = note_state_pool.active_view()[0]
+    assert float(row["timestamp_seconds"]) == 1.0
+
+
+def test_on_note_spawned_callback_receives_world_packed_id_lane_and_threat_type(memory_manager, world, null_audio_clock):
+    memory_manager.create_pool(LANE_POOL_NAME, np.dtype([("lane", np.int8)]))
+    memory_manager.create_pool(THREAT_TYPE_POOL_NAME, np.dtype([("threat_type", np.int16)]))
+    world.register_archetype(ARCHETYPE_NAME, (LANE_POOL_NAME, THREAT_TYPE_POOL_NAME))
+
+    calls = []
+
+    def on_note_spawned(callback_world, packed_entity_id, lane, threat_type):
+        calls.append((callback_world, packed_entity_id, lane, threat_type))
+
+    scheduled_threats = _build_scheduled_threats()
+    system = RhythmSpawnerSystem(
+        audio_clock=null_audio_clock,
+        scheduled_threats=scheduled_threats,
+        threat_archetype_name=ARCHETYPE_NAME,
+        lane_pool_name=LANE_POOL_NAME,
+        threat_type_pool_name=THREAT_TYPE_POOL_NAME,
+        on_note_spawned=on_note_spawned,
+    )
+
+    null_audio_clock.advance(1.2)  # dispara evento 0: lane=0, threat_type=0
+    system.update(world, delta_time=0.016)
+
+    assert len(calls) == 1
+    callback_world, packed_entity_id, lane, threat_type = calls[0]
+    assert callback_world is world
+    assert world.is_alive(packed_entity_id)
+    assert lane == 0
+    assert threat_type == 0
+
+    null_audio_clock.set_now_seconds(2.6)  # dispara evento 1: lane=1, threat_type=1
+    system.update(world, delta_time=0.016)
+
+    assert len(calls) == 2
+    assert calls[1][2:] == (1, 1)
