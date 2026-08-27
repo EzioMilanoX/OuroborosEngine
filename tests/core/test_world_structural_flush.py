@@ -2,8 +2,30 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import numpy as np
+
 from ouroboros.core.memory.handles import unpack_index
 from ouroboros.core.systems.collision_system import CollisionSystem
+
+
+def test_world_create_pool_is_a_passthrough_to_memory_manager(memory_manager, world):
+    dtype = np.dtype([("lane", np.int8)])
+
+    pool = world.create_pool("lane", dtype)
+
+    assert pool is memory_manager.get_pool("lane")
+    assert world.get_pool("lane") is pool
+    assert world.has_pool("lane")
+    assert not world.has_pool("nonexistent_pool_name")
+
+
+def test_world_pack_current_is_a_passthrough_to_memory_manager(memory_manager, world):
+    world.register_archetype("thing", ("transform",))
+    handle = world.create_entity("thing")
+    index = unpack_index(handle)
+
+    assert world.pack_current(index) == memory_manager.pack_current(index)
+    assert world.pack_current(index) == handle
 
 
 def test_create_entity_is_immediate():

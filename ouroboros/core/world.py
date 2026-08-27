@@ -5,7 +5,7 @@
 """Registry central: orquestra MemoryManager, Systems e arquetipos data-driven."""
 from __future__ import annotations
 
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -73,14 +73,18 @@ class World:
         """
         self._archetypes[name] = tuple(pool_names)
 
-    def create_entity(self, archetype_name: str) -> PackedEntityId:
+    def create_entity(self, archetype_name: str, clear: bool = False) -> PackedEntityId:
         """
         Aciona `memory_manager.acquire_entity()` (que retorna um
         `PackedEntityId` primitivo -- NENHUMA instancia de
         `EntityHandle` e construida neste caminho) e, para cada pool do
-        arquetipo `archetype_name`, `pool.attach(index)`, onde `index`
-        e extraido do `PackedEntityId` via `unpack_index` (operacao
-        primitiva de bits, sem alocacao).
+        arquetipo `archetype_name`, `pool.attach(index, clear=clear)`,
+        onde `index` e extraido do `PackedEntityId` via `unpack_index`
+        (operacao primitiva de bits, sem alocacao).
+
+        `clear` (default `False`, preserva o comportamento antigo):
+        repassado a cada `pool.attach` -- ver `ComponentPool.attach`
+        para o que isso faz e por que (linha densa reciclada suja).
 
         Retorna o `PackedEntityId` resultante. Este e o UNICO valor de
         identidade de entidade que atravessa `ISystem.update()`. O
@@ -90,7 +94,7 @@ class World:
         packed = self._memory_manager.acquire_entity()
         index = unpack_index(packed)
         for pool_name in self._archetypes[archetype_name]:
-            self._memory_manager.get_pool(pool_name).attach(index)
+            self._memory_manager.get_pool(pool_name).attach(index, clear=clear)
         return packed
 
     def destroy_entity(self, packed_handle: PackedEntityId) -> None:
@@ -114,6 +118,14 @@ class World:
         """Atalho primitivo para `self._memory_manager.is_alive(packed_handle)` -- nao instancia `EntityHandle`."""
         return self._memory_manager.is_alive(packed_handle)
 
+    def create_pool(self, name: str, dtype: np.dtype, dense_capacity: Optional[int] = None) -> ComponentPool:
+        """Atalho para `self._memory_manager.create_pool(name, dtype, dense_capacity)`, usado pela
+        camada de composicao de um produto para registrar pools ESPECIFICAS (ex.: `lane`,
+        `threat_type`, `note_state` do Jogo Musical) por cima das pools genericas ja criadas por
+        `CompositionRoot.build()`. So deve ser chamado durante a composicao (mesma restricao de
+        `MemoryManager.create_pool`)."""
+        return self._memory_manager.create_pool(name, dtype, dense_capacity)
+
     def get_pool(self, name: str) -> ComponentPool:
         """Atalho para `self._memory_manager.get_pool(name)`, usado por Systems e pela camada de composicao."""
         return self._memory_manager.get_pool(name)
@@ -121,6 +133,12 @@ class World:
     def has_pool(self, name: str) -> bool:
         """Atalho para `self._memory_manager.has_pool(name)`, usado por loaders (ex.: `ArchetypeLoader`) para validar referencias antes de registrar."""
         return self._memory_manager.has_pool(name)
+
+    def pack_current(self, index: int) -> PackedEntityId:
+        """Atalho para `self._memory_manager.pack_current(index)` -- reconstroi o `PackedEntityId`
+        ATUAL de um `entity_index` vivo, sem instanciar `EntityHandle`. Usado por Systems que so
+        recebem `world` (nunca `MemoryManager` diretamente) em `update()`, ex.: `FxTtlSystem`."""
+        return self._memory_manager.pack_current(index)
 
     def has_archetype(self, name: str) -> bool:
         """Indica se `name` ja foi registrado via `register_archetype`."""

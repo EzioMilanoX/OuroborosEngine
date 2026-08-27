@@ -52,11 +52,40 @@ SPRITE_DATA_DTYPE: np.dtype = np.dtype([
 (Pilar 2) -- apenas um `texture_id` inteiro que o backend concreto
 resolve para seu proprio recurso grafico, sem vazar acoplamento."""
 
+FX_DTYPE: np.dtype = np.dtype([
+    ("kind", np.uint32),
+    ("position_x", np.float32),
+    ("position_y", np.float32),
+    ("width", np.float32),
+    ("height", np.float32),
+    ("tint_r", np.uint8),
+    ("tint_g", np.uint8),
+    ("tint_b", np.uint8),
+    ("tint_a", np.uint8),
+    ("ttl_seconds", np.float32),
+])
+"""Efeito visual transiente (ROADMAP M1.3), decrementado por
+`ouroboros.core.systems.fx_system.FxTtlSystem` e repassado a
+`IRenderer.draw_effects` (Pilar 2). `kind` e um inteiro OPACO -- mesma
+largura de `SPRITE_DATA_DTYPE.texture_id` (forward-compatible com um
+futuro id crc32), nunca resolvido pelo nucleo: a semantica (qual forma/
+textura) e responsabilidade exclusiva do backend concreto/produto, que
+importa `ouroboros.interfaces.renderer.SHAPE_*` por conta propria (o
+nucleo nunca importa `ouroboros.interfaces` -- ver contrato de camadas
+do import-linter). Diferente de transform/velocity/hitbox/sprite, a
+pool `fx` (criada automaticamente via `COMPONENT_SCHEMAS`, igual as
+demais) NAO tem um arquetipo nem sistema registrados automaticamente
+pelo `CompositionRoot` -- um produto que queira usar `fx` registra
+`world.register_archetype("fx", ("fx",))` e `FxTtlSystem` do seu
+proprio jeito, exatamente como ja faz para arquetipos/sistemas
+especificos seus."""
+
 COMPONENT_SCHEMAS: Dict[str, np.dtype] = {
     "transform": TRANSFORM_DTYPE,
     "velocity": VELOCITY_DTYPE,
     "hitbox": HITBOX_DTYPE,
     "sprite": SPRITE_DATA_DTYPE,
+    "fx": FX_DTYPE,
 }
 """Registro nome-logico -> dtype consultado por `MemoryManager.create_pool`
 durante a composicao. Schemas especificos de um unico produto (ex.:

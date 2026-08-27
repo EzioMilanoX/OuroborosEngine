@@ -108,6 +108,28 @@ def test_is_alive_batch_matches_scalar_is_alive():
     assert result.tolist() == [True, False, True, True]
 
 
+def test_pack_current_matches_original_packed_id_right_after_acquire():
+    mm = MemoryManager(entity_capacity=4)
+    handle = mm.acquire_entity()
+    index = unpack_index(handle)
+
+    assert mm.pack_current(index) == handle
+
+
+def test_pack_current_reflects_new_generation_after_release_and_reacquire():
+    mm = MemoryManager(entity_capacity=1)
+    handle_gen0 = mm.acquire_entity()
+    index = unpack_index(handle_gen0)
+    mm.release_entity(handle_gen0)
+    handle_gen1 = mm.acquire_entity()  # mesmo indice, geracao nova
+
+    repacked = mm.pack_current(index)
+
+    assert repacked == handle_gen1
+    assert repacked != handle_gen0
+    assert unpack_generation(repacked) == unpack_generation(handle_gen0) + 1
+
+
 def test_multiple_pools_share_the_same_global_entity_index_space():
     mm = MemoryManager(entity_capacity=4)
     pool_a = mm.create_pool("a", TRANSFORM_LIKE_DTYPE)

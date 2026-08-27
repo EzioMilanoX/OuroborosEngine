@@ -64,6 +64,17 @@ def test_null_audio_engine_is_a_real_iaudioengine(null_audio_engine):
     assert clock.is_playing() is False
 
 
+def test_null_audio_engine_load_sound_and_register_tone_are_recorded(null_audio_engine):
+    null_audio_engine.load_sound("hit", "hit.wav")
+    assert null_audio_engine._loaded_sounds["hit"] == "hit.wav"
+
+    null_audio_engine.register_tone("beep", kind="square", freq=880.0, duration=0.05)
+    assert null_audio_engine._registered_tones["beep"] == ("square", 880.0, 0.05)
+
+    null_audio_engine.play_one_shot("hit", volume=0.8)
+    assert null_audio_engine._one_shots_played == [("hit", 0.8)]
+
+
 def test_null_audio_clock_is_shared_between_engine_and_fixture(null_audio_engine, null_audio_clock):
     assert null_audio_clock is null_audio_engine.get_clock()
 

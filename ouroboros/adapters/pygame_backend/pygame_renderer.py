@@ -10,7 +10,7 @@ from typing import Dict, Tuple
 import numpy as np
 import pygame
 
-from ouroboros.interfaces.renderer import IRenderer, SHAPE_CIRCLE
+from ouroboros.interfaces.renderer import IRenderer, SHAPE_CIRCLE, SHAPE_RING
 
 _TEXT_CACHE_MAX = 512
 
@@ -27,10 +27,12 @@ class PygameRenderer(IRenderer):
     Constituicao: a Regra 1 (Zero-GC) regula o loop de GAMEPLAY, nao o
     adapter de apresentacao.
 
-    Formas (ROADMAP M1): sem pipeline de texturas ainda, `texture_ids`
-    resolve formas primitivas (SHAPE_RECT/SHAPE_CIRCLE). `tint_rgba[3]`
-    (alpha) e respeitado: sprites translucidos passam por uma superficie
-    SRCALPHA temporaria (custo pago so por quem usa alpha).
+    Formas (ROADMAP M1): sem pipeline de texturas ainda, `texture_ids`/
+    `kinds` resolve formas primitivas (SHAPE_RECT/SHAPE_CIRCLE/SHAPE_RING)
+    via `_draw_shape`, compartilhado por `draw_batch` (sprites) e
+    `draw_effects` (pool `fx`). `tint_rgba[3]` (alpha) e respeitado:
+    formas translucidas passam por uma superficie SRCALPHA temporaria
+    (custo pago so por quem usa alpha).
 
     Texto (ROADMAP M2): `draw_text` cacheia fontes por tamanho e
     superficies por (texto, tamanho, cor), com teto de cache -- chamavel
@@ -74,7 +76,6 @@ class PygameRenderer(IRenderer):
         if count == 0:
             return
         draw_order = np.argsort(layer_z[:count], kind="stable")
-        surf = self._surface
         cam_dx, cam_dy = self._cam_dx, self._cam_dy
         for i in draw_order:
             i = int(i)
@@ -82,28 +83,60 @@ class PygameRenderer(IRenderer):
             y = float(positions_xy[i, 1]) + cam_dy
             width = max(1, int(8 * max(float(scales_xy[i, 0]), 0.01)))
             height = max(1, int(8 * max(float(scales_xy[i, 1]), 0.01)))
-            r = int(tint_rgba[i, 0]); g = int(tint_rgba[i, 1])
-            b = int(tint_rgba[i, 2]); a = int(tint_rgba[i, 3])
-            if a <= 0:
-                continue
-            shape = int(texture_ids[i])
-            if a >= 255:                              # opaco: direto
-                if shape == SHAPE_CIRCLE:
-                    pygame.draw.circle(surf, (r, g, b),
-                                       (int(x), int(y)), max(1, width // 2))
-                else:
-                    pygame.draw.rect(surf, (r, g, b),
-                                     (int(x - width / 2), int(y - height / 2),
-                                      width, height))
-            else:                                     # translucido
-                tmp = pygame.Surface((width, height), pygame.SRCALPHA)
-                if shape == SHAPE_CIRCLE:
-                    pygame.draw.circle(tmp, (r, g, b, a),
-                                       (width // 2, height // 2),
-                                       max(1, width // 2))
-                else:
-                    tmp.fill((r, g, b, a))
-                surf.blit(tmp, (int(x - width / 2), int(y - height / 2)))
+            self._draw_shape(
+                int(texture_ids[i]), x, y, width, height,
+                int(tint_rgba[i, 0]), int(tint_rgba[i, 1]), int(tint_rgba[i, 2]), int(tint_rgba[i, 3]),
+            )
+
+    def draw_effects(
+        self,
+        kinds: np.ndarray,
+        positions_xy: np.ndarray,
+        sizes_wh: np.ndarray,
+        tint_rgba: np.ndarray,
+        count: int,
+    ) -> None:
+        cam_dx, cam_dy = self._cam_dx, self._cam_dy
+        for i in range(count):
+            x = float(positions_xy[i, 0]) + cam_dx
+            y = float(positions_xy[i, 1]) + cam_dy
+            width = max(1, int(sizes_wh[i, 0]))
+            height = max(1, int(sizes_wh[i, 1]))
+            self._draw_shape(
+                int(kinds[i]), x, y, width, height,
+                int(tint_rgba[i, 0]), int(tint_rgba[i, 1]), int(tint_rgba[i, 2]), int(tint_rgba[i, 3]),
+            )
+
+    def _draw_shape(
+        self, shape: int, x: float, y: float, width: int, height: int, r: int, g: int, b: int, a: int
+    ) -> None:
+        """Desenha UMA forma primitiva (RECT/CIRCLE/RING) centrada em `(x, y)`, com
+        `width`/`height` em pixels -- compartilhado por `draw_batch` e `draw_effects`
+        (o mesmo leque de formas serve sprites e efeitos)."""
+        if a <= 0:
+            return
+        surf = self._surface
+        if a >= 255:                              # opaco: direto
+            if shape == SHAPE_CIRCLE:
+                pygame.draw.circle(surf, (r, g, b), (int(x), int(y)), max(1, width // 2))
+            elif shape == SHAPE_RING:
+                radius = max(1, width // 2)
+                thickness = max(2, radius // 6)
+                pygame.draw.circle(surf, (r, g, b), (int(x), int(y)), radius, thickness)
+            else:
+                pygame.draw.rect(surf, (r, g, b),
+                                 (int(x - width / 2), int(y - height / 2), width, height))
+        else:                                     # translucido
+            tmp = pygame.Surface((width, height), pygame.SRCALPHA)
+            if shape == SHAPE_CIRCLE:
+                pygame.draw.circle(tmp, (r, g, b, a), (width // 2, height // 2), max(1, width // 2))
+            elif shape == SHAPE_RING:
+                radius = max(1, width // 2)
+                thickness = max(2, radius // 6)
+                pygame.draw.circle(tmp, (r, g, b, a), (width // 2, height // 2), radius, thickness)
+            else:
+                tmp.fill((r, g, b, a))
+            surf.blit(tmp, (int(x - width / 2), int(y - height / 2)))
 
     def draw_ui_rect(self, x: float, y: float, w: float, h: float,
                      rgba: Tuple[int, int, int, int]) -> None:

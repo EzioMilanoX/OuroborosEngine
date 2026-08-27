@@ -75,7 +75,7 @@ class ComponentPool:
         """Retorna True se a entidade `entity_index` possui uma linha ativa nesta pool."""
         return bool(self._sparse_to_dense[entity_index] != INVALID_DENSE_ROW)
 
-    def attach(self, entity_index: int) -> int:
+    def attach(self, entity_index: int, clear: bool = False) -> int:
         """
         Anexa este componente a entidade `entity_index`, alocando a
         proxima linha densa livre (`count`) e atualizando os mapas
@@ -83,6 +83,15 @@ class ComponentPool:
         resultante, para o chamador escrever os valores iniciais via
         `pool.active_view()[linha] = ...`. Levanta erro se `entity_index`
         ja estiver anexado ou se `count == capacity`.
+
+        `clear` (default `False`, preserva o comportamento antigo):
+        quando `True`, zera todos os campos da linha reciclada
+        (`self._dense_data[row] = 0`) antes de retornar -- uma linha
+        densa reciclada de um swap-remove anterior contem lixo do
+        ocupante antigo, e um campo que o chamador esquecer de escrever
+        silenciosamente herda esse lixo. Custo O(itemsize), pago apenas
+        por quem pedir; spawns quentes que ja escrevem todos os campos
+        manualmente continuam com custo zero.
         """
         if self.is_attached(entity_index):
             raise ValueError(f"entity_index {entity_index} already attached to this ComponentPool")
@@ -92,6 +101,8 @@ class ComponentPool:
         self._sparse_to_dense[entity_index] = row
         self._dense_to_sparse[row] = entity_index
         self._count += 1
+        if clear:
+            self._dense_data[row] = 0
         return row
 
     def detach(self, entity_index: int) -> None:

@@ -14,23 +14,9 @@ from ouroboros.core.systems.physics_system import PhysicsSystem
 from ouroboros.interfaces.null.null_input_provider import NullInputProvider
 
 
-class QuitAfterNPolls(NullInputProvider):
-    """Duble de teste: sinaliza `wants_quit()` apos N chamadas de `poll()`, para tornar `GameLoop.run()` deterministico."""
-
-    def __init__(self, quit_after: int) -> None:
-        super().__init__()
-        self._polls = 0
-        self._quit_after = quit_after
-
-    def poll(self) -> None:
-        super().poll()
-        self._polls += 1
-
-    def wants_quit(self) -> bool:
-        return self._polls >= self._quit_after
-
-
-def test_game_loop_runs_fixed_number_of_frames_and_renders_sprites(memory_manager, world, null_renderer, null_audio_engine):
+def test_game_loop_runs_fixed_number_of_frames_and_renders_sprites(
+    memory_manager, world, null_renderer, null_audio_engine, bind_quit_after
+):
     world.register_archetype("sprite_entity", ("transform", "sprite"))
     world.register_system(PhysicsSystem(memory_manager))
 
@@ -48,11 +34,13 @@ def test_game_loop_runs_fixed_number_of_frames_and_renders_sprites(memory_manage
     s_row = sprite_pool.dense_row_of(index)
     sprite_pool.active_view()["texture_id"][s_row] = 7
 
-    quitter = QuitAfterNPolls(quit_after=3)
-    game_loop = GameLoop(world, null_renderer, quitter, null_audio_engine, target_fps=0)
+    input_provider = NullInputProvider()
+    poll_count = bind_quit_after(input_provider, quit_after=3)
+    game_loop = GameLoop(world, null_renderer, input_provider, null_audio_engine, target_fps=0)
 
     game_loop.run()
 
+    assert poll_count["n"] == 3
     assert null_renderer.begin_frame_count == 3
     assert null_renderer.end_frame_count == 3
     assert null_renderer.draw_batch_calls == [1, 1, 1]
@@ -62,13 +50,48 @@ def test_game_loop_runs_fixed_number_of_frames_and_renders_sprites(memory_manage
     assert transform_pool.active_view()["position_x"][final_row] > 0.0
 
 
-def test_game_loop_renders_zero_sprites_when_no_entity_has_both_transform_and_sprite(world, null_renderer, null_audio_engine):
-    quitter = QuitAfterNPolls(quit_after=1)
-    game_loop = GameLoop(world, null_renderer, quitter, null_audio_engine, target_fps=0)
+def test_game_loop_renders_zero_sprites_when_no_entity_has_both_transform_and_sprite(
+    world, null_renderer, null_audio_engine, bind_quit_after
+):
+    input_provider = NullInputProvider()
+    bind_quit_after(input_provider, quit_after=1)
+    game_loop = GameLoop(world, null_renderer, input_provider, null_audio_engine, target_fps=0)
 
     game_loop.run()
 
     assert null_renderer.draw_batch_calls == [0]
+
+
+def test_game_loop_calls_draw_effects_with_zero_count_when_product_never_uses_fx(
+    world, null_renderer, null_audio_engine, bind_quit_after
+):
+    """A pool `fx` (ROADMAP M1.3) sempre existe (criada via COMPONENT_SCHEMAS), entao
+    `draw_effects` e sempre chamado -- mesmo por um produto que nunca a usa, sempre com count=0."""
+    input_provider = NullInputProvider()
+    bind_quit_after(input_provider, quit_after=2)
+    game_loop = GameLoop(world, null_renderer, input_provider, null_audio_engine, target_fps=0)
+
+    game_loop.run()
+
+    assert null_renderer.draw_effects_calls == [0, 0]
+
+
+def test_game_loop_calls_draw_effects_with_live_fx_entities(
+    memory_manager, world, null_renderer, null_audio_engine, bind_quit_after
+):
+    world.register_archetype("fx", ("fx",))
+    handle = world.create_entity("fx")
+    fx_pool = world.get_pool("fx")
+    row = fx_pool.dense_row_of(unpack_index(handle))
+    fx_pool.active_view()["ttl_seconds"][row] = 10.0  # nao expira durante o teste
+
+    input_provider = NullInputProvider()
+    bind_quit_after(input_provider, quit_after=1)
+    game_loop = GameLoop(world, null_renderer, input_provider, null_audio_engine, target_fps=0)
+
+    game_loop.run()
+
+    assert null_renderer.draw_effects_calls == [1]
 
 
 def test_game_loop_stop_halts_the_loop_from_within_a_system(world, null_renderer, null_audio_engine):

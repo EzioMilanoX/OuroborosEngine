@@ -33,6 +33,15 @@ class IAudioEngine(ABC):
         ...
 
     @abstractmethod
+    def load_sound(self, sound_id: str, file_path: str) -> None:
+        """Pre-carrega e cacheia `file_path` como um efeito sonoro curto sob o
+        nome `sound_id`, fora do loop de gameplay -- espelha `load_track`, mas
+        para uma amostra ONE-SHOT (`play_one_shot`), nao uma faixa em stream.
+        Da a uma amostra baseada em arquivo um nome amigavel, simetrico ao que
+        `register_tone` ja permite para um som sintetizado."""
+        ...
+
+    @abstractmethod
     def play_one_shot(self, sound_id: str, volume: float = 1.0) -> None:
         """Dispara um efeito sonoro curto identificado por `sound_id`, sem afetar `get_clock()`."""
         ...

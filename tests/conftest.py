@@ -141,6 +141,37 @@ def null_audio_clock(null_audio_engine: IAudioEngine) -> IAudioClock:
 
 
 @pytest.fixture
+def bind_quit_after():
+    """Fornece uma funcao que monkeypatcha `.poll()`/`.wants_quit()` de QUALQUER
+    `IInputProvider` ja construido (Null ou backend real) para que `GameLoop.run()`
+    termine deterministicamente apos um numero fixo de chamadas de `poll()` --
+    fixture oficial do Pilar 5 (ROADMAP M5.3), unificando os dois padroes ad-hoc
+    que existiam espalhados pela suite antes desta fixture (uma subclasse de
+    `NullInputProvider` que so funcionava com um input_provider criado do zero, e
+    um closure `counting_poll()` inline repetido em varios testes que precisavam
+    monkeypatchar um input_provider REAL ja construido por `CompositionRoot`).
+
+    Uso: `poll_count = bind_quit_after(input_provider, quit_after=3)`, depois
+    `game_loop.run()` -- `poll_count["n"]` fica disponivel para os testes que
+    querem confirmar o numero exato de frames rodados (varios o fazem).
+    """
+
+    def _bind(input_provider, quit_after: int) -> dict:
+        poll_count = {"n": 0}
+        original_poll = input_provider.poll
+
+        def counting_poll() -> None:
+            original_poll()
+            poll_count["n"] += 1
+
+        input_provider.poll = counting_poll
+        input_provider.wants_quit = lambda: poll_count["n"] >= quit_after
+        return poll_count
+
+    return _bind
+
+
+@pytest.fixture
 def synthetic_wav_factory(tmp_path):
     """
     Fabrica um arquivo WAV sintetico curto (clique metronomico a um BPM

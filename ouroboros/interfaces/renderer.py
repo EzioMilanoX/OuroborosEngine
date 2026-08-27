@@ -15,6 +15,7 @@ import numpy as np
 # de SHAPE_MAX ficam reservados para texturas reais no futuro.
 SHAPE_RECT = 0
 SHAPE_CIRCLE = 1
+SHAPE_RING = 2
 SHAPE_MAX = 15
 
 
@@ -99,6 +100,31 @@ class IRenderer(ABC):
     def set_camera_offset(self, dx: float, dy: float) -> None:
         """Deslocamento aplicado as posicoes de draw_batch (screen shake).
         Nao afeta draw_text/draw_ui_rect. Default: no-op."""
+
+    def draw_effects(
+        self,
+        kinds: np.ndarray,
+        positions_xy: np.ndarray,
+        sizes_wh: np.ndarray,
+        tint_rgba: np.ndarray,
+        count: int,
+    ) -> None:
+        """
+        Desenha `count` efeitos visuais (pool `fx` do nucleo -- ROADMAP
+        M1.3) a partir de arrays SoA CRUS, mesmo espirito de
+        `draw_batch` mas sem rotacao/camada de desenho (o dtype `fx`
+        nao tem esses campos -- desenha na ordem da pool).
+
+        Args:
+            kinds: shape (N,) inteiro, mesma familia de `texture_ids`
+                de `draw_batch` (SHAPE_RECT/SHAPE_CIRCLE/SHAPE_RING).
+            positions_xy: shape (N, 2) float32, coordenadas de mundo.
+            sizes_wh: shape (N, 2) float32, largura/altura.
+            tint_rgba: shape (N, 4) uint8.
+            count: numero de entradas validas nos arrays acima.
+
+        Default: no-op (backends que nao suportam fx continuam validos).
+        """
 
     @abstractmethod
     def get_viewport_size(self) -> Tuple[int, int]:

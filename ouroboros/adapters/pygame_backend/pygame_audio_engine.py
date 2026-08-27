@@ -47,6 +47,9 @@ class PygameAudioEngine(IAudioEngine):
             pygame.mixer.music.stop()
             self._current_track_id = None
 
+    def load_sound(self, sound_id: str, file_path: str) -> None:
+        self._sounds[sound_id] = pygame.mixer.Sound(file_path)
+
     def play_one_shot(self, sound_id: str, volume: float = 1.0) -> None:
         sound = self._sounds.get(sound_id)
         if sound is None:

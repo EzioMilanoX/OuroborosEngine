@@ -137,6 +137,20 @@ class MemoryManager:
         for pool in self._pools.values():
             pool.detach(index)
 
+    def pack_current(self, index: int) -> PackedEntityId:
+        """
+        Reconstroi o `PackedEntityId` ATUAL (geracao vigente) de um
+        `entity_index` vivo, sem instanciar `EntityHandle` -- mesma
+        primitiva que `acquire_entity` ja usa internamente
+        (`EntityHandle.pack_raw`). Nao valida vivacidade: o chamador
+        garante que `index` veio de `active_entity_indices()` de
+        alguma `ComponentPool` (ou seja, de fato anexado a algo agora).
+        Elimina a necessidade de Systems guardarem uma coluna extra
+        (`packed_entity_id`/`owner_handle`) so para poder chamar
+        `World.destroy_entity` a partir de um indice puro.
+        """
+        return EntityHandle.pack_raw(index, int(self._entity_generations[index]))
+
     def is_alive(self, packed_handle: PackedEntityId) -> bool:
         """Extrai `index`/`generation` primitivos e delega a `is_alive_raw`."""
         return self.is_alive_raw(unpack_index(packed_handle), unpack_generation(packed_handle))

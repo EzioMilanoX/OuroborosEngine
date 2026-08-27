@@ -36,11 +36,11 @@ def test_composition_root_builds_a_working_game_loop(engine_config):
     game_loop = root.build()
 
     assert isinstance(game_loop, GameLoop)
-    assert isinstance(game_loop._world, World)
-    assert game_loop._world.get_pool("transform") is not None
-    assert game_loop._renderer.get_viewport_size() == (320, 240)
+    assert isinstance(game_loop.world, World)
+    assert game_loop.world.get_pool("transform") is not None
+    assert game_loop.renderer.get_viewport_size() == (320, 240)
 
-    game_loop._renderer.shutdown()
+    game_loop.renderer.shutdown()
     if pygame.mixer.get_init():
         pygame.mixer.quit()
 

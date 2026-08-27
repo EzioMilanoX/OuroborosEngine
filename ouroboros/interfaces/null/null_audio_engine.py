@@ -23,9 +23,14 @@ class NullAudioEngine(IAudioEngine):
         self._loaded_tracks = {}
         self._playing_track_id = None
         self._one_shots_played = []
+        self._loaded_sounds = {}
+        self._registered_tones = {}
 
     def load_track(self, track_id: str, file_path: str) -> None:
         self._loaded_tracks[track_id] = file_path
+
+    def load_sound(self, sound_id: str, file_path: str) -> None:
+        self._loaded_sounds[sound_id] = file_path
 
     def play_track(self, track_id: str, start_offset_seconds: float = 0.0, loop: bool = False) -> None:
         self._playing_track_id = track_id
@@ -42,3 +47,8 @@ class NullAudioEngine(IAudioEngine):
 
     def get_clock(self) -> IAudioClock:
         return self._clock
+
+    def register_tone(self, sound_id: str, kind: str = "square",
+                      freq: float = 440.0, duration: float = 0.12) -> None:
+        """Registra a chamada (para inspecao em teste), sem sintetizar nada de verdade."""
+        self._registered_tones[sound_id] = (kind, freq, duration)

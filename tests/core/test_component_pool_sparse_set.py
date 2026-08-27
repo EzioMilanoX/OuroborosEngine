@@ -82,6 +82,42 @@ def test_dense_row_of_unattached_entity_is_invalid_row():
     assert pool.dense_row_of(0) == INVALID_DENSE_ROW
 
 
+def test_attach_default_leaves_recycled_row_dirty():
+    """Comportamento antigo (default `clear=False`): uma linha densa reciclada
+    de um swap-remove anterior mantem o lixo do ocupante antigo se o chamador
+    nao escrever aquele campo por conta propria."""
+    pool = make_pool()
+    row_a = pool.attach(1)
+    pool.active_view()["x"][row_a] = 99.0
+    pool.active_view()["y"][row_a] = 42.0
+    pool.detach(1)  # linha 0 fica livre, com x=99.0/y=42.0 ainda no array denso
+
+    row_b = pool.attach(2)  # recicla a mesma linha densa
+    assert row_b == row_a
+    assert pool.active_view()["x"][row_b] == 99.0  # lixo do ocupante antigo, nao escrito
+    assert pool.active_view()["y"][row_b] == 42.0
+
+
+def test_attach_clear_true_zeroes_recycled_row():
+    """`clear=True` elimina a classe de bug acima: a linha reciclada vem zerada."""
+    pool = make_pool()
+    row_a = pool.attach(1)
+    pool.active_view()["x"][row_a] = 99.0
+    pool.active_view()["y"][row_a] = 42.0
+    pool.detach(1)
+
+    row_b = pool.attach(2, clear=True)
+    assert pool.active_view()["x"][row_b] == 0.0
+    assert pool.active_view()["y"][row_b] == 0.0
+
+
+def test_attach_clear_true_on_a_fresh_never_used_row_is_still_zero():
+    pool = make_pool()
+    row = pool.attach(1, clear=True)
+    assert pool.active_view()["x"][row] == 0.0
+    assert pool.active_view()["y"][row] == 0.0
+
+
 def test_intersect_entity_indices_across_two_pools():
     pool_a = make_pool()
     pool_b = make_pool()

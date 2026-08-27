@@ -25,6 +25,7 @@ class NullRenderer(IRenderer):
         self.begin_frame_count = 0
         self.end_frame_count = 0
         self.draw_batch_calls = []
+        self.draw_effects_calls = []
 
     def initialize(self, width: int, height: int, title: str) -> None:
         self._width = width
@@ -44,6 +45,16 @@ class NullRenderer(IRenderer):
         count: int,
     ) -> None:
         self.draw_batch_calls.append(count)
+
+    def draw_effects(
+        self,
+        kinds: np.ndarray,
+        positions_xy: np.ndarray,
+        sizes_wh: np.ndarray,
+        tint_rgba: np.ndarray,
+        count: int,
+    ) -> None:
+        self.draw_effects_calls.append(count)
 
     def end_frame(self) -> None:
         self.end_frame_count += 1
