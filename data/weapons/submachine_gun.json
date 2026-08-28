@@ -1,0 +1,11 @@
+{
+  "id": "submachine_gun",
+  "display_name": "Submetralhadora",
+  "base_damage": 6.0,
+  "fire_rate_per_second": 6.0,
+  "projectile_speed": 700.0,
+  "modifiers": [
+    { "attribute": "cooldown", "operation": "percent_mult", "magnitude": 0.85 },
+    { "attribute": "damage", "operation": "flat", "magnitude": -1.0 }
+  ]
+}

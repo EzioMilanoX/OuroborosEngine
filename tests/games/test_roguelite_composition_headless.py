@@ -15,15 +15,27 @@ import pytest
 from ouroboros.bootstrap.engine_config import EngineConfig
 from ouroboros.bootstrap.game_loop import GameLoop
 from ouroboros.bootstrap.scene import GameplayScene
+from ouroboros.interfaces.renderer import SHAPE_RECT
 from ouroboros.roguelite.combat.schemas import EntityKind
+from ouroboros.roguelite.generation.dungeon_generator import DungeonGenerator
+from ouroboros.roguelite.generation.random import StrictRandom
+from ouroboros.roguelite.loaders.difficulty_loader import DifficultyLoader
+from ouroboros.roguelite.loaders.room_type_loader import RoomTypeLoader
 
 from games.roguelite.composition import (
+    DIFFICULTIES_DIR,
+    DIFFICULTY_ID,
+    DUNGEON_LEVEL_SEED,
+    DUNGEON_MAX_ROOMS,
+    DUNGEON_ROOM_SIZE_RANGE,
+    DUNGEON_ROOT_SEED,
     ENEMY_ARCHETYPE_NAME,
     FACING_POOL_NAME,
     HEALTH_POOL_NAME,
     PLAYER_ARCHETYPE_NAME,
     PROJECTILE_ARCHETYPE_NAME,
     ROOM_BACKDROP_ARCHETYPE_NAME,
+    ROOM_TYPES_PATH,
     build_game,
 )
 from games.roguelite.end_scene import EndScene
@@ -171,3 +183,48 @@ def test_player_death_pushes_end_scene_and_esc_quits_from_it(game_loop: GameLoop
     game_loop.run()  # deve retornar (game_loop.stop() chamado de dentro do proprio update() da EndScene)
 
     assert isinstance(game_loop.current_scene, EndScene)  # nunca deu pop -- so parou o loop
+
+
+def test_room_backdrop_tint_matches_its_room_type_from_room_types_json(game_loop: GameLoop):
+    """ROADMAP M10.1: prova de ponta a ponta que `room_row["room_type"]"]`
+    (existente desde a geracao original da masmorra, nunca lido antes)
+    realmente determina o tint da entidade de fundo -- regenera o MESMO
+    layout deterministico (mesma seed que `build_game` usa) so pra saber o
+    room_type esperado da sala 0 (spawn do jogador, ativa desde o 1o frame),
+    sem reconstruir nenhum World."""
+    layout = DungeonGenerator(
+        max_rooms=DUNGEON_MAX_ROOMS, room_size_range=DUNGEON_ROOM_SIZE_RANGE
+    ).generate(StrictRandom(root_seed=DUNGEON_ROOT_SEED), level_seed=DUNGEON_LEVEL_SEED)
+    room_type_tints = RoomTypeLoader(ROOM_TYPES_PATH).load()
+    expected_tint = room_type_tints[int(layout.rooms[0]["room_type"])]
+
+    # A sala 0 so materializa (DungeonStreamingSystem) durante um world.step()
+    # -- build_game() sozinho ainda nao rodou nenhum frame.
+    game_loop.world.step(0.016)
+
+    sprite_pool = game_loop.world.get_pool("sprite")
+    view = sprite_pool.active_view()
+    backdrop_rows = np.nonzero(view["texture_id"] == SHAPE_RECT)[0]
+    assert len(backdrop_rows) >= 1
+    row = backdrop_rows[0]
+    actual_tint = (
+        int(view["tint_r"][row]), int(view["tint_g"][row]), int(view["tint_b"][row]), int(view["tint_a"][row]),
+    )
+    assert actual_tint == expected_tint
+
+
+def test_enemies_per_room_follows_spawn_rate_multiplier(game_loop: GameLoop):
+    """ROADMAP M10.3: spawn_rate_multiplier era lido do JSON mas nunca
+    consumido -- "normal" (multiplier=1.0) deve continuar gerando
+    exatamente 1 inimigo por sala (comportamento de sempre, antes do M10)."""
+    difficulty = DifficultyLoader(DIFFICULTIES_DIR).load(DIFFICULTY_ID)
+    assert float(difficulty["spawn_rate_multiplier"]) == pytest.approx(1.0)
+
+    layout = DungeonGenerator(
+        max_rooms=DUNGEON_MAX_ROOMS, room_size_range=DUNGEON_ROOM_SIZE_RANGE
+    ).generate(StrictRandom(root_seed=DUNGEON_ROOT_SEED), level_seed=DUNGEON_LEVEL_SEED)
+    expected_enemy_count = len(layout.rooms) - 1  # todas as salas exceto a de spawn (rooms[0])
+
+    health_pool = game_loop.world.get_pool(HEALTH_POOL_NAME)
+    actual_enemy_count = int(np.count_nonzero(health_pool.active_view()["entity_kind"] == EntityKind.ENEMY))
+    assert actual_enemy_count == expected_enemy_count

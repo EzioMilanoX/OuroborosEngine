@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 import dataclasses
+import math
 from pathlib import Path
-from typing import Tuple
+from typing import Sequence, Tuple
 
 import numpy as np
 
@@ -25,6 +26,11 @@ from ouroboros.roguelite.items.inventory_pool import InventoryPool
 from ouroboros.roguelite.items.schemas import INVENTORY_SLOT_DTYPE
 from ouroboros.roguelite.items.weapon_loader import WeaponLoader
 from ouroboros.roguelite.loaders.difficulty_loader import DifficultyLoader
+from ouroboros.roguelite.loaders.room_type_loader import (
+    RoomTypeDefinitionError,
+    RoomTypeLoader,
+    RoomTypeTintRGBA,
+)
 from ouroboros.roguelite.modifiers.modifier_stack import ModifierStack
 from ouroboros.roguelite.systems.damage_system import DamageOnCollisionSystem
 from ouroboros.roguelite.systems.dungeon_streaming_system import DungeonStreamingSystem
@@ -92,6 +98,12 @@ DIFFICULTIES_DIR = _REPO_ROOT / "data" / "difficulties"
 WEAPONS_DIR = _REPO_ROOT / "data" / "weapons"
 STARTER_WEAPON_ID = "starter_pistol"
 ROGUELITE_ARCHETYPES_DIR = _REPO_ROOT / "data" / "archetypes" / "roguelite"
+ROOM_TYPES_PATH = _REPO_ROOT / "data" / "room_types.json"
+
+# Base do numero de inimigos por sala ANTES de aplicar spawn_rate_multiplier
+# (ROADMAP M10.3) -- o valor pre-M10, preservado como base pra "normal"
+# (multiplier=1.0) continuar gerando exatamente 1 inimigo por sala de sempre.
+BASE_ENEMIES_PER_ROOM = 1.0
 
 
 def _find_collision_system(world: World) -> CollisionSystem:
@@ -139,11 +151,13 @@ def _layout_with_pixel_space_centers(layout: DungeonLayout) -> DungeonLayout:
     return dataclasses.replace(layout, rooms=rooms_px)
 
 
-def _make_on_room_activated(world: World):
+def _make_on_room_activated(world: World, room_type_tints: Sequence[RoomTypeTintRGBA]):
     """Escreve os campos iniciais (`ArchetypeLoader` ignora `"initial_values"`
     -- achado do M6) da entidade de fundo que acabou de materializar pra UMA
     sala: mesmo retangulo grande de antes, so que agora por ativacao em vez
-    de uma vez so no boot.
+    de uma vez so no boot, com o tint por `room_type` (ROADMAP M10.1 --
+    `room_row["room_type"]` existe desde a geracao original da masmorra mas
+    nunca tinha sido lido por ninguem).
 
     `room_row` vem de `DungeonLayout.rooms` -- mas do layout JA ESCALADO
     (`_layout_with_pixel_space_centers`) que e passado pro
@@ -160,6 +174,13 @@ def _make_on_room_activated(world: World):
         index = unpack_index(packed_entity_id)
         width_px = float(room_row["width"]) * TILE_PIXELS
         height_px = float(room_row["height"]) * TILE_PIXELS
+        room_type = int(room_row["room_type"])
+        if not 0 <= room_type < len(room_type_tints):
+            raise RoomTypeDefinitionError(
+                f"DungeonGenerator produziu room_type={room_type}, fora do "
+                f"intervalo coberto por {ROOM_TYPES_PATH} (0..{len(room_type_tints) - 1})"
+            )
+        tint_r, tint_g, tint_b, tint_a = room_type_tints[room_type]
 
         t_row = transform_pool.dense_row_of(index)
         t_view = transform_pool.active_view()
@@ -172,10 +193,10 @@ def _make_on_room_activated(world: World):
         s_row = sprite_pool.dense_row_of(index)
         s_view = sprite_pool.active_view()
         s_view["texture_id"][s_row] = SHAPE_RECT
-        s_view["tint_r"][s_row] = 40
-        s_view["tint_g"][s_row] = 40
-        s_view["tint_b"][s_row] = 55
-        s_view["tint_a"][s_row] = 255
+        s_view["tint_r"][s_row] = tint_r
+        s_view["tint_g"][s_row] = tint_g
+        s_view["tint_b"][s_row] = tint_b
+        s_view["tint_a"][s_row] = tint_a
         s_view["layer_z"][s_row] = 0
 
     return _on_room_activated
@@ -325,6 +346,7 @@ def build_game(config: EngineConfig) -> GameLoop:
     ArchetypeLoader(ROGUELITE_ARCHETYPES_DIR).load_and_register_all(world)
 
     difficulty = DifficultyLoader(DIFFICULTIES_DIR).load(DIFFICULTY_ID)
+    room_type_tints = RoomTypeLoader(ROOM_TYPES_PATH).load()
 
     spawn_room = layout.rooms[0]
     player_index = _spawn_player(
@@ -345,23 +367,34 @@ def build_game(config: EngineConfig) -> GameLoop:
             ROOM_DEACTIVATION_RADIUS,
             "transform",
             world.pack_current(player_index),
-            on_room_activated=_make_on_room_activated(world),
+            on_room_activated=_make_on_room_activated(world, room_type_tints),
         )
     )
 
     enemy_health = 30.0 * float(difficulty["enemy_health_multiplier"])
     enemy_contact_damage = 8.0 * float(difficulty["enemy_damage_multiplier"])
+    # ROADMAP M10.3: spawn_rate_multiplier era lido do JSON mas nunca consumido
+    # -- "normal" (multiplier=1.0) sempre gerou exatamente 1 inimigo por sala,
+    # entao BASE_ENEMIES_PER_ROOM=1.0 preserva esse comportamento de sempre
+    # pra essa unica dificuldade existente hoje. math.floor(x + 0.5) em vez de
+    # round() (arredondamento bancario do Python: round(2.5) == 2, nao 3) --
+    # nao muda nada com multiplier=1.0, mas evita uma surpresa nao-monotonica
+    # pra quem tunar uma dificuldade nova no JSON.
+    enemies_per_room = max(
+        1, math.floor(BASE_ENEMIES_PER_ROOM * float(difficulty["spawn_rate_multiplier"]) + 0.5)
+    )
     placement_rng = strict_random.stream(RandomStreamPurpose.ENEMY_PLACEMENT)
     for room in layout.rooms[1:]:
-        jitter_x = float(placement_rng.uniform(-2.0, 2.0))
-        jitter_y = float(placement_rng.uniform(-2.0, 2.0))
-        _spawn_enemy(
-            world,
-            spawn_x=(float(room["center_x"]) + jitter_x) * TILE_PIXELS,
-            spawn_y=(float(room["center_y"]) + jitter_y) * TILE_PIXELS,
-            hp=enemy_health,
-            contact_damage=enemy_contact_damage,
-        )
+        for _ in range(enemies_per_room):
+            jitter_x = float(placement_rng.uniform(-2.0, 2.0))
+            jitter_y = float(placement_rng.uniform(-2.0, 2.0))
+            _spawn_enemy(
+                world,
+                spawn_x=(float(room["center_x"]) + jitter_x) * TILE_PIXELS,
+                spawn_y=(float(room["center_y"]) + jitter_y) * TILE_PIXELS,
+                hp=enemy_health,
+                contact_damage=enemy_contact_damage,
+            )
 
     modifier_stack = ModifierStack(attribute_capacity=8, entry_capacity=8)
     inventory = InventoryPool(world.get_pool(INVENTORY_POOL_NAME), max_slots_per_owner=1)

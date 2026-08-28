@@ -1,0 +1,6 @@
+[
+  { "name": "standard", "tint_rgba": [40, 40, 55, 255] },
+  { "name": "combat", "tint_rgba": [70, 32, 32, 255] },
+  { "name": "treasure", "tint_rgba": [72, 64, 24, 255] },
+  { "name": "sanctuary", "tint_rgba": [28, 58, 62, 255] }
+]

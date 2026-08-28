@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from ouroboros.core.memory.component_pool import ComponentPool
+from ouroboros.core.stable_id import stable_id_from_name
 from ouroboros.roguelite.items.inventory_pool import InventoryPool
 from ouroboros.roguelite.items.schemas import INVENTORY_SLOT_DTYPE
 from ouroboros.roguelite.items.weapon_loader import WeaponDefinitionError, WeaponLoader
@@ -196,6 +197,38 @@ def test_json_level_modifiers_are_applied_on_materialize(tmp_path) -> None:
     final_value = float(modifier_stack.attributes[int(slot["damage_attribute_index"])]["final_value"])
     # (10 + 5) * 2.0 = 30.0
     assert final_value == pytest.approx(30.0)
+
+
+def test_materialize_applies_submachine_gun_json_modifiers() -> None:
+    """Segunda arma real do catalogo (ROADMAP M10.2), primeiro exercicio de
+    `modifiers` nao-vazio contra o `data/weapons/` de verdade (nao um
+    fixture em tmp_path como `test_json_level_modifiers_are_applied_on_
+    materialize`). Resolve o id por `stable_id_from_name` diretamente (nao
+    `next(iter(definitions))`) para nao depender da ordem de iteracao do
+    dict, que segue `sorted(glob("*.json"))` -- ver docstring de
+    `WeaponLoader.load_all_definitions`."""
+    loader = WeaponLoader(REAL_WEAPONS_DIR)
+    definitions = loader.load_all_definitions()
+    weapon_def_id = stable_id_from_name("submachine_gun")
+    assert weapon_def_id in definitions
+
+    modifier_stack = ModifierStack(attribute_capacity=8, entry_capacity=8)
+    inventory = _make_inventory()
+
+    dense_row = loader.materialize(
+        weapon_def_id, definitions, inventory, modifier_stack,
+        owner_local_index=0, slot_index=0, instance_source_id=1,
+    )
+    modifier_stack.recompute_all()
+
+    slot = inventory.active_view()[dense_row]
+    damage = float(modifier_stack.attributes[int(slot["damage_attribute_index"])]["final_value"])
+    cooldown = float(modifier_stack.attributes[int(slot["cooldown_attribute_index"])]["final_value"])
+
+    # base_damage=6.0 + flat(-1.0) = 5.0
+    assert damage == pytest.approx(5.0)
+    # base_cooldown=1/6 * percent_mult(0.85) ~= 0.14166667
+    assert cooldown == pytest.approx((1.0 / 6.0) * 0.85)
 
 
 def test_load_all_definitions_raises_on_missing_required_field(tmp_path) -> None:

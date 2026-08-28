@@ -13,6 +13,11 @@ import numpy as np
 from ouroboros.roguelite.generation.random import RandomStreamPurpose, StrictRandom
 from ouroboros.roguelite.generation.schemas import ROOM_DTYPE, TILE_DTYPE, TileType
 
+# Quantidade de valores distintos de `ROOM_DTYPE.room_type` que este gerador
+# produz (ver `_carve_rooms`). Consumido por `RoomTypeLoader` para validar
+# que `data/room_types.json` cobre todo o intervalo gerado.
+ROOM_TYPE_COUNT = 4
+
 
 def _rectangles_overlap(
     x: int, y: int, width: int, height: int, placed_rects: List[Tuple[int, int, int, int]], margin: int
@@ -148,7 +153,7 @@ class DungeonGenerator:
                 y = row * spacing
 
             placed_rects.append((x, y, width, height))
-            room_type = int(rng.integers(0, 4))
+            room_type = int(rng.integers(0, ROOM_TYPE_COUNT))
             center_x = x + width / 2.0
             center_y = y + height / 2.0
             rooms[room_id] = (room_id, x, y, width, height, room_type, 0, 0, center_x, center_y)
