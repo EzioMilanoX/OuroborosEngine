@@ -47,9 +47,12 @@ tambem concluidos: CI real + este README (M7); release da engine + adocao
 completa no BulletHell -- SceneStack, particulas, screen shake, audio banks,
 fullscreen (M8, cross-repo); `UniformGrid`/`DungeonStreamingSystem` postos
 pra funcionar de verdade + limpeza do placeholder vazio de um backend Godot
-(M9). Faltam M10 (Roguelite: variedade de sala, segunda arma, dificuldade) e
-M11 (Jogo Musical: menu, segundo beatmap, particulas/textura no acerto) --
-detalhes completos em `ROADMAP.md`.
+(M9); Roguelite ganhou profundidade real -- tipos de sala data-driven
+(`data/room_types.json`), uma segunda arma exercitando modificadores
+(`submachine_gun.json`), `spawn_rate_multiplier` de verdade influenciando a
+contagem de inimigos por sala (M10). Falta M11 (Jogo Musical: menu, segundo
+beatmap, particulas/textura no acerto) -- detalhes completos em
+`ROADMAP.md`.
 
 ## Rodando localmente
 

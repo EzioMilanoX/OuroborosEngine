@@ -147,15 +147,48 @@ Verificado: suite completa (319 testes) + `lint-imports` (3 kept, 0 broken) +
 verificação manual do jogo real (salas ativando/desativando conforme o
 jogador se move, colisão continuando a funcionar via a grade nova).
 
-### M10 — Roguelite: profundidade real
+### M10 — Roguelite: profundidade real — concluído
 
-1. Tabela JSON de tipos de sala consumida na renderização — variedade visual
-   real por `room_type` (campo que já existe em `ROOM_DTYPE` desde a geração
-   original da masmorra, mas nunca foi lido por ninguém).
-2. Uma segunda arma real com `"modifiers"` não-vazio — primeiro exercício de
-   verdade do caminho já pronto em `WeaponLoader.materialize`.
-3. Consumir `spawn_rate_multiplier` de `DifficultyLoader` na hora de decidir
-   quantos inimigos spawnar por sala.
+1. **Tabela JSON de tipos de sala** (`data/room_types.json`, novo
+   `RoomTypeLoader`): variedade visual real por `room_type` (campo que já
+   existia em `ROOM_DTYPE` desde a geração original da masmorra, mas nunca
+   tinha sido lido por ninguém — confirmado pela seed fixa do jogo: gera
+   `[0, 2, 0, 1, 1, 3]`, as 4 variações realmente aparecem numa run). Achado
+   real da crítica: nada garantia que a tabela JSON tivesse entradas
+   suficientes pro intervalo `[0, 4)` que o gerador produz — corrigido com
+   uma constante `ROOM_TYPE_COUNT` (nova, em `dungeon_generator.py`, usada
+   tanto na geração quanto na validação do loader) e uma checagem de limites
+   explícita em `_make_on_room_activated`, pra nunca deixar um `IndexError`
+   de numpy escapar de dentro do callback de ativação de sala.
+2. **`data/weapons/submachine_gun.json`** (segunda arma real, não equipada
+   como inicial — falta UI de seleção): primeiro exercício de verdade do
+   caminho `"modifiers"` não-vazio de `WeaponLoader.materialize` contra o
+   catálogo real (os testes anteriores só cobriam esse caminho com um
+   fixture em `tmp_path`). Novo teste de integração confere os valores
+   finais calculados à mão: `damage = 6.0 + flat(-1.0) = 5.0`,
+   `cooldown = (1/6) * percent_mult(0.85) ≈ 0.14167` — resolve o
+   `weapon_def_id` por `stable_id_from_name` diretamente, não
+   `next(iter(definitions))` (a crítica notou que esse idioma, usado nos
+   testes mais antigos, depende da ordem alfabética de
+   `sorted(glob("*.json"))` e ficaria frágil contra uma 3ª arma futura cujo
+   nome ordene antes de "starter_pistol").
+3. **`spawn_rate_multiplier` consumido** na hora de decidir quantos
+   inimigos nascem por sala (antes, sempre exatamente 1, o multiplicador
+   era lido de `DifficultyLoader` e nunca usado). `math.floor(x + 0.5)` em
+   vez de `round()` — achado da crítica: o arredondamento bancário do
+   Python (`round(2.5) == 2`, não 3) seria uma superfície não-monotônica
+   pra quem tunar uma dificuldade nova; não muda nada hoje (`normal.json`
+   tem `multiplier=1.0`, único arquivo de dificuldade existente). Sem teto
+   explícito em `enemies_per_room`: `MemoryManager.create_entity` já
+   levanta um `IndexError` claro se `entity_capacity` estourar, e nenhuma
+   dificuldade real hoje se aproxima disso.
+
+Verificado: suite completa (328 testes, incluindo um novo
+`test_room_type_loader.py` e 3 testes novos de integração em
+`test_roguelite_composition_headless.py`/`test_weapon_loader.py`) +
+`lint-imports` (3 kept, 0 broken) + execução manual headless confirmando
+inimigos-por-sala e tint por `room_type` batendo com o layout determinístico
+esperado.
 
 Fora de escopo (deferido): sistema de loot/pickups e, com ele,
 `RandomStreamPurpose.LOOT_TABLE`/`loot_rarity_bias` — fica pra quando loot for
@@ -181,7 +214,7 @@ M8a/M8b/M8c (release da engine + adoção completa no BulletHell -- concluído)
   │
 M9 (UniformGrid + DungeonStreamingSystem real + limpeza do godot_backend -- concluído)
   │
-  ├──► M10 (Roguelite: salas/arma/dificuldade)
+  ├──► M10 (Roguelite: salas/arma/dificuldade -- concluído)
   └──► M11 (Jogo Musical: menu/beatmap/juice) -- pode rodar em paralelo ao M10
 ```
 
@@ -189,8 +222,9 @@ M7 primeiro por ser rápido. M8 em seguida por ser o item de maior
 alavancagem (nada da Fase 1 chega no BulletHell sem ele) mas também o de
 maior escopo/risco (dois repositórios) — os 3 sub-marcos (release, trocas
 cirúrgicas, SceneStack) todos concluídos. M9 antes de M10 porque a
-renderização de salas do M10.1 depende de onde o streaming real (M9.2)
-deixar o código. M11 não depende de nada além do que já existe hoje.
+renderização de salas do M10.1 dependia de onde o streaming real (M9.2)
+deixasse o código. M11 não depende de nada além do que já existe hoje —
+único item restante desta fase.
 
 ## Fora de escopo desta fase inteira
 
