@@ -1,0 +1,8 @@
+{
+  "window_width": 800,
+  "window_height": 600,
+  "window_title": "OuroborosEngine -- Jogo Roguelite (vertical slice)",
+  "entity_capacity": 1024,
+  "difficulty_path": "data/difficulties/normal.json",
+  "input_bindings_path": "data/input_bindings/default_keyboard.json"
+}

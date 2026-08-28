@@ -5,5 +5,6 @@
   "move_down": "KEY_S",
   "fire": "MOUSE_LEFT",
   "dash": "KEY_SPACE",
-  "pause": "KEY_ESCAPE"
+  "pause": "KEY_ESCAPE",
+  "quit": "KEY_ESCAPE"
 }

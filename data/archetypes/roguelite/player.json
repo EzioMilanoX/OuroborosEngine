@@ -1,0 +1,11 @@
+{
+  "id": "player",
+  "pools": ["transform", "velocity", "hitbox", "sprite", "health", "facing"],
+  "initial_values": {
+    "hitbox": { "half_width": 10.0, "half_height": 10.0, "collision_layer": 1, "collision_mask": 2 },
+    "sprite": { "texture_id": 1, "frame_index": 0, "tint_r": 90, "tint_g": 160, "tint_b": 255, "tint_a": 255, "layer_z": 20 },
+    "health": { "entity_kind": 0, "current_hp": 100.0, "max_hp": 100.0, "contact_damage": 0.0, "destroy_on_hit": false },
+    "facing": { "facing_x": 0.0, "facing_y": -1.0 }
+  },
+  "_nota": "initial_values NAO e aplicado por ArchetypeLoader hoje (gap pre-existente do motor, ja documentado no Jogo Musical) -- games/roguelite/composition.py grava estes mesmos valores manualmente apos world.create_entity."
+}

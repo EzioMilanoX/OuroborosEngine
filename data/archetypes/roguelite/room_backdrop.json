@@ -1,0 +1,8 @@
+{
+  "id": "room_backdrop",
+  "pools": ["transform", "sprite"],
+  "initial_values": {
+    "sprite": { "texture_id": 0, "frame_index": 0, "tint_r": 40, "tint_g": 40, "tint_b": 55, "tint_a": 255, "layer_z": 0 }
+  },
+  "_nota": "Representacao visual ESTATICA de uma sala (um retangulo grande, sem geometria por tile nem colisao de parede -- limitacao de v1 documentada em games/roguelite/composition.py). initial_values NAO e aplicado por ArchetypeLoader hoje -- composition.py grava estes campos manualmente apos world.create_entity."
+}

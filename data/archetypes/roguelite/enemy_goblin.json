@@ -1,0 +1,10 @@
+{
+  "id": "enemy_goblin",
+  "pools": ["transform", "velocity", "hitbox", "sprite", "health"],
+  "initial_values": {
+    "hitbox": { "half_width": 8.0, "half_height": 8.0, "collision_layer": 2, "collision_mask": 5 },
+    "sprite": { "texture_id": 101, "frame_index": 0, "tint_r": 90, "tint_g": 200, "tint_b": 90, "tint_a": 255, "layer_z": 10 },
+    "health": { "entity_kind": 1, "current_hp": 30.0, "max_hp": 30.0, "contact_damage": 8.0, "destroy_on_hit": false }
+  },
+  "_nota": "Copia dedicada em data/archetypes/roguelite/ (nao a raiz data/archetypes/enemy_goblin.json) -- ArchetypeLoader escaneia o diretorio inteiro nao-recursivamente, e a copia da raiz e usada pelos testes genericos do Pilar 3 contra um world sem a pool 'health'. initial_values NAO e aplicado por ArchetypeLoader hoje -- games/roguelite/composition.py grava estes mesmos valores manualmente apos world.create_entity."
+}

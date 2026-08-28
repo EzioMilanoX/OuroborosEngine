@@ -1,0 +1,10 @@
+{
+  "id": "projectile",
+  "pools": ["transform", "velocity", "hitbox", "sprite", "health"],
+  "initial_values": {
+    "hitbox": { "half_width": 3.0, "half_height": 3.0, "collision_layer": 4, "collision_mask": 2 },
+    "sprite": { "texture_id": 1, "frame_index": 0, "tint_r": 255, "tint_g": 230, "tint_b": 120, "tint_a": 255, "layer_z": 5 },
+    "health": { "entity_kind": 2, "current_hp": 1.0, "max_hp": 1.0, "contact_damage": 10.0, "destroy_on_hit": true }
+  },
+  "_nota": "initial_values NAO e aplicado por ArchetypeLoader hoje -- games/roguelite/systems/weapon_fire_system.py grava estes campos manualmente (com damage/velocidade reais vindos do ModifierStack) a cada disparo, apos world.create_entity."
+}
