@@ -93,15 +93,25 @@ engine (`ScreenShake.current_magnitude()`, `ParticleStorage.ttl0_seconds`
 — release `0.2.1`). Verificado: 6/6 smoke scripts (222 checks) + 174 testes
 pytest do BulletHell, mais checagens funcionais diretas.
 
-**M8c** (repo `BulletHell`, marco próprio — descoberto maior do que um item
-de checklist durante a pesquisa do M8b): trocar o menu hand-rolled
-(`GameApp`/`scenes.py`, ~1200 linhas, seu próprio loop principal com 15
-estados via if/elif) pela `SceneStack` da engine. Não é uma troca incremental:
-exige inverter `main_ecs.py` pra `GameLoop` (não `GameApp`) virar dono do
-loop, e reescrever as 15 telas (menus, wizard de 5 passos, replay, dev-mode)
-como `IScene`, realocando lógica de cheat-code/SFX/shake/mastery/conquistas
-que hoje mora dentro de `GameApp.tick()`. Fica pra depois do M8b, com seu
-próprio ciclo de pesquisa/design/crítica.
+**M8c** (repo `BulletHell`, concluído): trocado o menu hand-rolled (`GameApp`/
+`scenes.py`, ~1200 linhas, seu próprio loop principal com 15 estados via
+if/elif) pela `SceneStack` de verdade. Motivou 3 adições na engine
+(`GameLoop.replace_world`/`reset_scenes`/`tick_once` — release `0.2.2`):
+nenhum produto existente precisava de "sem `World` até terminar um menu,
+reconstruir `World` a cada partida" (Jogo Musical/Roguelite constroem um
+`World` só, pra vida inteira do processo). `GameApp` virou objeto de
+SESSÃO (não mais dono do loop); 8 `IScene`s novas substituem o dispatch de
+15 estados (`WizardScene` cobre os 7 passos do assistente como uma única
+cena com passo interno, não 7 cenas). Dois bugs reais achados e corrigidos
+durante a implementação: "SAIR" ficaria mudo (dependia de `self._running`/
+`GameApp.run()`, ambos removidos — corrigido chamando `game_loop.stop()`
+direto) e "voltar ao menu" via `pop_scene()` exporia a `GameplayScene`
+genérica da engine (base não-removível da pilha) rodando por baixo sem
+menu/HUD — corrigido usando o novo `reset_scenes()` para essas transições
+de "modo" inteiro, não `pop_scene()`. Verificado: 6/6 smoke scripts (242
+checks, 3 deles ajustados pra construir o `GameLoop` que passaram a
+precisar) + 174 testes pytest + o entry point real (`main_ecs.py`, com e
+sem `--play`) rodando de ponta a ponta.
 
 Fora de escopo do M8b/M8c: texturas reais no BulletHell (falta arte, não só
 código) e reorganizar o roster de bosses do Decálogo pros modos normais.
@@ -151,9 +161,7 @@ um marco próprio.
 ```
 M7 (CI+README, rápido)
   │
-M8a (release da engine, concluído) ──► M8b (trocas cirúrgicas no BulletHell)
-  │                                       │
-  │                                       └──► M8c (SceneStack no BulletHell — marco próprio, maior escopo)
+M8a/M8b/M8c (release da engine + adoção completa no BulletHell -- concluído)
   │
 M9 (UniformGrid + DungeonStreamingSystem real + limpeza do godot_backend)
   │
@@ -163,12 +171,10 @@ M9 (UniformGrid + DungeonStreamingSystem real + limpeza do godot_backend)
 
 M7 primeiro por ser rápido. M8 em seguida por ser o item de maior
 alavancagem (nada da Fase 1 chega no BulletHell sem ele) mas também o de
-maior escopo/risco (dois repositórios) — dividido em M8a/M8b (concluídos ou
-em andamento) e M8c (SceneStack, descoberto grande demais pra ser um item de
-checklist do M8b). M9 antes de M10 porque a renderização de salas do M10.1
-depende de onde o streaming real (M9.2) deixar o código. M11 não depende de
-nada além do que já existe hoje, e M8c não bloqueia M9/M10/M11 (pode rodar
-em qualquer ordem relativa a eles).
+maior escopo/risco (dois repositórios) — os 3 sub-marcos (release, trocas
+cirúrgicas, SceneStack) todos concluídos. M9 antes de M10 porque a
+renderização de salas do M10.1 depende de onde o streaming real (M9.2)
+deixar o código. M11 não depende de nada além do que já existe hoje.
 
 ## Fora de escopo desta fase inteira
 
