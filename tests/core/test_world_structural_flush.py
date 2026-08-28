@@ -19,6 +19,34 @@ def test_world_create_pool_is_a_passthrough_to_memory_manager(memory_manager, wo
     assert not world.has_pool("nonexistent_pool_name")
 
 
+def test_world_systems_exposes_registered_systems_in_order(world):
+    class _RecordingSystem:
+        def update(self, world, delta_time):
+            pass
+
+    assert world.systems == ()
+
+    system_a = _RecordingSystem()
+    system_b = _RecordingSystem()
+    world.register_system(system_a)
+    world.register_system(system_b)
+
+    assert world.systems == (system_a, system_b)
+
+
+def test_world_systems_returns_a_copy_not_the_internal_list(world):
+    class _RecordingSystem:
+        def update(self, world, delta_time):
+            pass
+
+    world.register_system(_RecordingSystem())
+    systems = world.systems
+    systems_list = list(systems)
+    systems_list.append(_RecordingSystem())  # mutar a copia nao pode afetar o World
+
+    assert len(world.systems) == 1
+
+
 def test_world_pack_current_is_a_passthrough_to_memory_manager(memory_manager, world):
     world.register_archetype("thing", ("transform",))
     handle = world.create_entity("thing")

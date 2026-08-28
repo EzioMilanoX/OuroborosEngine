@@ -64,6 +64,16 @@ class World:
         """Adiciona `system` ao final da lista de execucao. So deve ser chamado durante a composicao."""
         self._systems.append(system)
 
+    @property
+    def systems(self) -> Tuple[ISystem, ...]:
+        """Tupla somente-leitura (copia -- nao a lista interna) dos sistemas registrados, na
+        ordem de registro. Usado por um script de composicao de produto que precisa de uma
+        referencia a um sistema generico ja registrado por `CompositionRoot.build()` (ex.:
+        `CollisionSystem`, pra ler `get_collision_pairs()`) sem reconstruir uma segunda
+        instancia redundante (ROADMAP M6 -- achado real ao compor `DamageOnCollisionSystem`:
+        nao havia nenhum jeito de recuperar o `CollisionSystem` ja construido)."""
+        return tuple(self._systems)
+
     def register_archetype(self, name: str, pool_names: Tuple[str, ...]) -> None:
         """
         Associa um nome de arquetipo (carregado de JSON pelo Pilar 3/4
