@@ -74,13 +74,24 @@ achado pelo próprio BulletHell (mais uma correção real encontrada no
 processo: `pyproject.toml` combinava `license` SPDX com um classifier
 antigo, o que quebraria qualquer `pip install` fresco, incluindo o CI do M7).
 
-**M8b** (repo `BulletHell`, trocas cirúrgicas — commits/push lá confirmados
-separadamente, mesmo protocolo de sempre): apontar `wheels/ENGINE_COMMIT.txt`
-pro novo release; trocar a pool de partículas local (`spawn_particles`/
-`ParticleSystem`) por `ParticleStorage`/`draw_particles`; trocar `clock.shake`
-+ `_apply_shake` pelo `ScreenShake` do bootstrap; trocar os 7 `register_tone`
-inline por um banco de áudio data-driven via `load_audio_bank`; ligar
-`set_fullscreen` na tela SISTEMA.
+**M8b** (repo `BulletHell`, concluído): `wheels/ENGINE_COMMIT.txt` apontado pro
+release `0.2.1`; `spawn_particles`/`ParticleSystem` (uma entidade ECS por
+partícula) viraram uma fila de pedidos de burst (`particle_request`, mesmo
+idioma de `clock.shake`/`clock.sfx`) drenada numa `ParticleStorage`
+compartilhada — hash determinístico de ângulo/velocidade preservado
+bit-a-bit (verificado); `_apply_shake` passou a usar
+`ScreenShake.trigger()`/`current_magnitude()` pro decaimento/teto aditivo
+(26/s, 18.0), mas o offset dx/dy em si continua vindo da mesma fórmula de
+hash de `run_t` de sempre — **não** do retorno de `ScreenShake.update()`
+(achado da crítica: `update()` decai *antes* de calcular a magnitude, ordem
+oposta à leitura-antes-de-decair que o BulletHell já fazia); os 7
+`register_tone` inline viraram um banco `bullethell/data/sfx.json` via
+`load_audio_bank`; `set_fullscreen` ligado num 3º toggle em SISTEMA (achado
+e corrigido de quebra: o toggle antigo tinha um bug real que faria um save
+sem a chave nova começar default-LIGADO). Motivou 2 adições pequenas na
+engine (`ScreenShake.current_magnitude()`, `ParticleStorage.ttl0_seconds`
+— release `0.2.1`). Verificado: 6/6 smoke scripts (222 checks) + 174 testes
+pytest do BulletHell, mais checagens funcionais diretas.
 
 **M8c** (repo `BulletHell`, marco próprio — descoberto maior do que um item
 de checklist durante a pesquisa do M8b): trocar o menu hand-rolled
