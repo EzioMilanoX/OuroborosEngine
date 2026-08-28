@@ -116,22 +116,38 @@ sem `--play`) rodando de ponta a ponta.
 Fora de escopo do M8b/M8c: texturas reais no BulletHell (falta arte, não só
 código) e reorganizar o roster de bosses do Decálogo pros modos normais.
 
-### M9 — Consumir primitivos construídos e nunca usados `[dívida técnica]`
+### M9 — Consumir primitivos construídos e nunca usados `[dívida técnica]` — concluído
 
-1. **`UniformGrid` real**: Roguelite passa a construir sua `CollisionSystem`
-   com uma grade dimensionada pelos limites da masmorra, em vez de
-   `spatial_grid=None`.
-2. **`DungeonStreamingSystem` real**: estender o sistema (pillar-level, em
-   `ouroboros/roguelite/systems/dungeon_streaming_system.py`) com um hook
-   tipo `on_room_activated(room, packed_entity_ids)` — a peça que faltava
-   pra escrever os campos iniciais de cada entidade materializada (mesmo gap
-   que `ArchetypeLoader` ignorar `initial_values` já documentado no M6) — e
-   trocar os sprites estáticos do M6 por streaming de verdade.
-3. **`godot_backend`**: remover o placeholder vazio e as entradas
-   correspondentes no import-linter — boilerplate morto sem plano concreto de
-   um segundo backend.
+1. **`UniformGrid` real**: `CompositionRoot.build()` ganhou um parâmetro
+   opcional `spatial_grid` (repassado pro `CollisionSystem` que já constrói —
+   `None` preserva o comportamento força-bruta de sempre pros outros
+   produtos). Roguelite gera a masmorra ANTES de chamar
+   `CompositionRoot.build()` (achado da crítica: `DungeonGenerator`/
+   `StrictRandom` não têm nenhuma dependência de `World`, então isso é
+   seguro), monta uma grade dimensionada pelos limites REAIS dos tiles
+   (salas + corredores — achado da crítica: usar só o retângulo de cada
+   sala deixaria corredores, que podem se estender bem além dele, fora dos
+   limites) e passa pra `.build(spatial_grid=...)`.
+2. **`DungeonStreamingSystem` real**: ganhou `on_room_activated`/
+   `on_room_deactivated` opcionais, chamados logo após `create_entity`/antes
+   de `destroy_entity`, recebendo a linha de `DungeonLayout.rooms` e o
+   `PackedEntityId` — a peça que faltava pra escrever os campos iniciais de
+   cada entidade materializada (mesmo gap do `ArchetypeLoader` ignorar
+   `initial_values`, já documentado no M6). Roguelite trocou os sprites
+   estáticos do M6 por streaming de verdade. Achado real da crítica:
+   `ROOM_DTYPE.center_x/center_y` são gerados em unidades de TILE, mas o
+   sistema compara direto contra a posição (em pixels) da âncora — sem
+   converter, a distância ficaria errada por um fator de `TILE_PIXELS`;
+   corrigido escalando uma cópia de `layout.rooms` só pra esse uso.
+3. **`godot_backend`**: removido o placeholder vazio e as entradas
+   correspondentes no import-linter (contratos 1 e 2 — `forbidden_modules`
+   só lista `pygame` agora).
 
-### M10 — Roguelite: profundidade real `[depende do M9.2 pra renderização de salas]`
+Verificado: suite completa (319 testes) + `lint-imports` (3 kept, 0 broken) +
+verificação manual do jogo real (salas ativando/desativando conforme o
+jogador se move, colisão continuando a funcionar via a grade nova).
+
+### M10 — Roguelite: profundidade real
 
 1. Tabela JSON de tipos de sala consumida na renderização — variedade visual
    real por `room_type` (campo que já existe em `ROOM_DTYPE` desde a geração
@@ -163,7 +179,7 @@ M7 (CI+README, rápido)
   │
 M8a/M8b/M8c (release da engine + adoção completa no BulletHell -- concluído)
   │
-M9 (UniformGrid + DungeonStreamingSystem real + limpeza do godot_backend)
+M9 (UniformGrid + DungeonStreamingSystem real + limpeza do godot_backend -- concluído)
   │
   ├──► M10 (Roguelite: salas/arma/dificuldade)
   └──► M11 (Jogo Musical: menu/beatmap/juice) -- pode rodar em paralelo ao M10
