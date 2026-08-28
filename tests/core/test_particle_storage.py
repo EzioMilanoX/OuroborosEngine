@@ -89,3 +89,29 @@ def test_update_when_nothing_expires_does_not_change_count():
     storage.update(0.016)
 
     assert storage.count == 4
+
+
+def test_emit_burst_auto_populates_ttl0_from_ttl_seconds():
+    storage = ParticleStorage(capacity=10)
+
+    storage.emit_burst(*_burst(3, ttl=0.8))
+
+    view = storage.active_view()
+    assert (view["ttl0_seconds"] == 0.8).all()
+
+
+def test_ttl0_survives_compaction_enabling_fade_by_age_at_draw_time():
+    """ttl0_seconds precisa sobreviver a compactacao do update() -- sem isso,
+    um chamador nao teria como calcular a fracao de vida restante (fade de
+    alpha) de particulas que sobrevivem a morte de outras no mesmo storage."""
+    storage = ParticleStorage(capacity=10)
+    storage.emit_burst(*_burst(1, ttl=0.1))  # expira e forca uma compactacao
+    storage.emit_burst(*_burst(1, ttl=1.0))  # sobrevive
+
+    storage.update(0.5)  # o primeiro morre, o segundo compacta pra linha 0
+
+    assert storage.count == 1
+    view = storage.active_view()
+    assert float(view["ttl0_seconds"][0]) == 1.0
+    fraction_alive = float(view["ttl_seconds"][0]) / float(view["ttl0_seconds"][0])
+    assert abs(fraction_alive - 0.5) < 1e-6

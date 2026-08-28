@@ -13,6 +13,7 @@ PARTICLE_DTYPE: np.dtype = np.dtype([
     ("velocity_x", np.float32),
     ("velocity_y", np.float32),
     ("ttl_seconds", np.float32),
+    ("ttl0_seconds", np.float32),
     ("size", np.float32),
     ("tint_r", np.uint8),
     ("tint_g", np.uint8),
@@ -90,6 +91,18 @@ class ParticleStorage:
         explosoes nao devia travar o jogo por causa disso). Retorna
         quantas particulas foram de fato emitidas (pode ser menor que o
         pedido -- cabe ao chamador decidir se quer checar).
+
+        `ttl0_seconds` (o ttl no momento do nascimento) e gravado
+        automaticamente a partir do proprio `ttl_seconds` recebido aqui --
+        nao ha parametro separado pra isso, ja que "atual" e "inicial" sao
+        o mesmo valor no instante da emissao. Existe pra quem precisa de
+        fade-por-idade no desenho (`tint_a = 255 * ttl_seconds/ttl0_seconds`),
+        algo que `update()` nao calcula sozinho (so integra posicao e
+        decrementa `ttl_seconds`) -- sem isso, a fracao de vida restante de
+        cada particula seria irrecuperavel apos a primeira compactacao por
+        morte de outra particula (`update()` reordena o array denso; nao ha
+        identidade estavel por particula pra um chamador rastrear o ttl
+        inicial por fora).
         """
         requested = position_x.shape[0]
         available = self._capacity - self._count
@@ -104,6 +117,7 @@ class ParticleStorage:
         view["velocity_x"][start:end] = velocity_x[:actual]
         view["velocity_y"][start:end] = velocity_y[:actual]
         view["ttl_seconds"][start:end] = ttl_seconds[:actual]
+        view["ttl0_seconds"][start:end] = ttl_seconds[:actual]
         view["size"][start:end] = size[:actual]
         view["tint_r"][start:end] = tint_rgba[:actual, 0]
         view["tint_g"][start:end] = tint_rgba[:actual, 1]

@@ -39,6 +39,17 @@ class ScreenShake:
         self._duration_seconds = duration_seconds
         self._remaining_seconds = duration_seconds
 
+    def current_magnitude(self) -> float:
+        """Intensidade atual (ja decaida), SEM avancar o tempo -- `update()` e
+        quem avanca. Existe pra quem precisa ACUMULAR um novo `trigger` em
+        cima de um shake ja em andamento (ex.: varios hits proximos no tempo
+        devem somar amplitude, nao substituir o shake atual por um mais fraco
+        se o novo evento for menor) -- o chamador le isto, soma com o novo
+        evento, e chama `trigger(novo_total, ...)` de novo."""
+        if self._remaining_seconds <= 0.0 or self._duration_seconds <= 0.0:
+            return 0.0
+        return self._intensity * (self._remaining_seconds / self._duration_seconds)
+
     def update(self, delta_time: float) -> Tuple[float, float]:
         """Avanca o decaimento e retorna o offset `(dx, dy)` deste frame --
         `(0.0, 0.0)` se nenhum shake estiver ativo ou ja tiver expirado."""

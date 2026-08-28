@@ -1,6 +1,6 @@
 [project]
 name = "ouroboros-engine"
-version = "0.2.0"
+version = "0.2.1"
 description = "Engine hibrida, orientada a dados e Zero-GC no gameplay, para um Roguelite procedural e um Jogo Musical com pipeline de IA"
 requires-python = ">=3.11"
 license = "MPL-2.0"
