@@ -6,12 +6,12 @@
 from __future__ import annotations
 
 import json
-import zlib
 from pathlib import Path
 from typing import Dict, List, Optional
 
 import numpy as np
 
+from ouroboros.core.stable_id import stable_id_from_name
 from ouroboros.roguelite.items.inventory_pool import InventoryPool
 from ouroboros.roguelite.items.schemas import INVENTORY_SLOT_DTYPE, WEAPON_DTYPE
 from ouroboros.roguelite.modifiers.modifier_stack import ModifierStack
@@ -30,13 +30,6 @@ _ATTRIBUTE_KEY_BY_NAME = ("damage", "cooldown", "range")
 # Limite superior de folga usado como clamp "sem teto pratico" para atributos
 # de arma cujo JSON nao especifica um teto explicito.
 _UNBOUNDED_MAX = float(np.finfo(np.float32).max)
-
-
-def _stable_weapon_def_id(text_id: str) -> int:
-    """Deriva um `weapon_def_id` inteiro (int32) estavel a partir do `id`
-    textual do JSON, via CRC32 -- puro e deterministico entre execucoes
-    (ao contrario de `hash()` nativo, que e aleatorizado por processo)."""
-    return zlib.crc32(text_id.encode("utf-8")) & 0x7FFFFFFF
 
 
 class WeaponDefinitionError(Exception):
@@ -109,7 +102,7 @@ class WeaponLoader:
                     f"fire_rate_per_second deve ser > 0 em {path} (id='{data['id']}')"
                 )
 
-            weapon_def_id = _stable_weapon_def_id(str(data["id"]))
+            weapon_def_id = stable_id_from_name(str(data["id"]))
             if weapon_def_id in raw_by_id:
                 raise WeaponDefinitionError(
                     f"weapon_def_id colidiu/duplicou para '{data['id']}' em {path}"
