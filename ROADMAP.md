@@ -68,20 +68,31 @@ Cada marco segue o mesmo ciclo já usado em M1–M6: pesquisa → design → cr�
 
 ### M8 — Release do engine + adoção no BulletHell (cross-repo) `[maior escopo, dois repos]`
 
-**M8a** (neste repo): bump de versão em `pyproject.toml`, build de um wheel
-novo, e adicionar o método que falta em `IRenderer` (ex.:
-`set_fullscreen(enabled: bool)`) — gap real da engine, achado pelo próprio
-BulletHell.
+**M8a** (neste repo, concluído): bump de versão (`0.2.0`), build de um wheel
+novo, e `IRenderer.set_fullscreen(enabled: bool)` — gap real da engine,
+achado pelo próprio BulletHell (mais uma correção real encontrada no
+processo: `pyproject.toml` combinava `license` SPDX com um classifier
+antigo, o que quebraria qualquer `pip install` fresco, incluindo o CI do M7).
 
-**M8b** (repo `BulletHell`, ação explícita em outro diretório/repo git —
-commits/push lá confirmados separadamente, mesmo protocolo de sempre):
-apontar `wheels/ENGINE_COMMIT.txt` pro novo release; trocar o menu hand-rolled
-(`GameApp`/`scenes.py`) por `SceneStack`; trocar a pool de partículas local
-por `ParticleStorage`/`draw_particles`; trocar `clock.shake` pelo
-`ScreenShake` do bootstrap; adotar bancos de áudio data-driven pros SFX;
-ligar `set_fullscreen` na tela SISTEMA.
+**M8b** (repo `BulletHell`, trocas cirúrgicas — commits/push lá confirmados
+separadamente, mesmo protocolo de sempre): apontar `wheels/ENGINE_COMMIT.txt`
+pro novo release; trocar a pool de partículas local (`spawn_particles`/
+`ParticleSystem`) por `ParticleStorage`/`draw_particles`; trocar `clock.shake`
++ `_apply_shake` pelo `ScreenShake` do bootstrap; trocar os 7 `register_tone`
+inline por um banco de áudio data-driven via `load_audio_bank`; ligar
+`set_fullscreen` na tela SISTEMA.
 
-Fora de escopo do M8b: texturas reais no BulletHell (falta arte, não só
+**M8c** (repo `BulletHell`, marco próprio — descoberto maior do que um item
+de checklist durante a pesquisa do M8b): trocar o menu hand-rolled
+(`GameApp`/`scenes.py`, ~1200 linhas, seu próprio loop principal com 15
+estados via if/elif) pela `SceneStack` da engine. Não é uma troca incremental:
+exige inverter `main_ecs.py` pra `GameLoop` (não `GameApp`) virar dono do
+loop, e reescrever as 15 telas (menus, wizard de 5 passos, replay, dev-mode)
+como `IScene`, realocando lógica de cheat-code/SFX/shake/mastery/conquistas
+que hoje mora dentro de `GameApp.tick()`. Fica pra depois do M8b, com seu
+próprio ciclo de pesquisa/design/crítica.
+
+Fora de escopo do M8b/M8c: texturas reais no BulletHell (falta arte, não só
 código) e reorganizar o roster de bosses do Decálogo pros modos normais.
 
 ### M9 — Consumir primitivos construídos e nunca usados `[dívida técnica]`
@@ -129,7 +140,9 @@ um marco próprio.
 ```
 M7 (CI+README, rápido)
   │
-M8 (release da engine + adoção no BulletHell — maior escopo, 2 repos)
+M8a (release da engine, concluído) ──► M8b (trocas cirúrgicas no BulletHell)
+  │                                       │
+  │                                       └──► M8c (SceneStack no BulletHell — marco próprio, maior escopo)
   │
 M9 (UniformGrid + DungeonStreamingSystem real + limpeza do godot_backend)
   │
@@ -139,9 +152,12 @@ M9 (UniformGrid + DungeonStreamingSystem real + limpeza do godot_backend)
 
 M7 primeiro por ser rápido. M8 em seguida por ser o item de maior
 alavancagem (nada da Fase 1 chega no BulletHell sem ele) mas também o de
-maior escopo/risco (dois repositórios). M9 antes de M10 porque a renderização
-de salas do M10.1 depende de onde o streaming real (M9.2) deixar o código.
-M11 não depende de nada além do que já existe hoje.
+maior escopo/risco (dois repositórios) — dividido em M8a/M8b (concluídos ou
+em andamento) e M8c (SceneStack, descoberto grande demais pra ser um item de
+checklist do M8b). M9 antes de M10 porque a renderização de salas do M10.1
+depende de onde o streaming real (M9.2) deixar o código. M11 não depende de
+nada além do que já existe hoje, e M8c não bloqueia M9/M10/M11 (pode rodar
+em qualquer ordem relativa a eles).
 
 ## Fora de escopo desta fase inteira
 
