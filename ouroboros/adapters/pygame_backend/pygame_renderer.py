@@ -66,6 +66,7 @@ class PygameRenderer(IRenderer):
         pygame.display.set_caption(title)
         self._width = width
         self._height = height
+        self._is_fullscreen = False
 
     def begin_frame(self) -> None:
         self._surface.fill((8, 8, 14))
@@ -76,6 +77,15 @@ class PygameRenderer(IRenderer):
     def set_camera_offset(self, dx: float, dy: float) -> None:
         self._cam_dx = dx
         self._cam_dy = dy
+
+    def set_fullscreen(self, enabled: bool) -> None:
+        # FULLSCREEN sozinho troca a resolucao real pra nativa da tela (ex.:
+        # 1024x768 sob o driver dummy mesmo pedindo 800x600) -- SCALED mantem
+        # a resolucao logica (self._width/self._height) intacta nos dois
+        # modos, escalando a apresentacao em vez de mudar get_viewport_size().
+        flags = (pygame.FULLSCREEN | pygame.SCALED) if enabled else 0
+        self._surface = pygame.display.set_mode((self._width, self._height), flags)
+        self._is_fullscreen = enabled
 
     def draw_batch(
         self,

@@ -52,6 +52,28 @@ def test_pygame_renderer_is_a_real_irenderer_and_initializes_headless(pygame_ren
     assert pygame_renderer.get_viewport_size() == (320, 240)
 
 
+def test_pygame_renderer_set_fullscreen_preserves_logical_surface_size(pygame_renderer):
+    """FULLSCREEN sozinho trocaria a resolucao REAL da superficie de desenho pela
+    nativa da tela (ex.: 1024x768 sob o driver dummy mesmo pedindo 320x240),
+    dessincronizando o que e desenhado do que get_viewport_size() afirma --
+    prova de que SCALED mantem a superficie real em 320x240 nos dois sentidos
+    da alternancia (get_viewport_size() sozinho nao pegaria essa regressao,
+    pois so reflete os campos gravados uma vez em initialize())."""
+    assert pygame_renderer._is_fullscreen is False
+    assert pygame.display.get_surface().get_size() == (320, 240)
+
+    pygame_renderer.set_fullscreen(True)
+    assert pygame_renderer._is_fullscreen is True
+    assert bool(pygame.display.get_surface().get_flags() & pygame.FULLSCREEN) is True
+    assert pygame.display.get_surface().get_size() == (320, 240)
+    assert pygame_renderer.get_viewport_size() == (320, 240)
+
+    pygame_renderer.set_fullscreen(False)
+    assert pygame_renderer._is_fullscreen is False
+    assert bool(pygame.display.get_surface().get_flags() & pygame.FULLSCREEN) is False
+    assert pygame.display.get_surface().get_size() == (320, 240)
+
+
 def test_pygame_renderer_draw_batch_runs_without_a_real_display(pygame_renderer):
     pygame_renderer.begin_frame()
     positions_xy = np.array([[10.0, 10.0], [50.0, 50.0]], dtype=np.float32)

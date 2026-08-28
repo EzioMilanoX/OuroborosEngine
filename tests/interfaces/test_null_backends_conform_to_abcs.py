@@ -34,6 +34,14 @@ def test_null_renderer_load_texture_and_draw_particles(null_renderer):
     assert null_renderer.draw_particles_calls == [0]
 
 
+def test_null_renderer_set_fullscreen_tracks_state_without_a_real_window(null_renderer):
+    assert null_renderer._is_fullscreen is False
+    null_renderer.set_fullscreen(True)
+    assert null_renderer._is_fullscreen is True
+    null_renderer.set_fullscreen(False)
+    assert null_renderer._is_fullscreen is False
+
+
 def test_null_input_provider_is_a_real_iinputprovider(null_input_provider):
     assert isinstance(null_input_provider, IInputProvider)
     assert null_input_provider.is_action_held("fire") is False

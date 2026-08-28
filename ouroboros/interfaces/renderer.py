@@ -113,6 +113,15 @@ class IRenderer(ABC):
         """Deslocamento aplicado as posicoes de draw_batch (screen shake).
         Nao afeta draw_text/draw_ui_rect. Default: no-op."""
 
+    def set_fullscreen(self, enabled: bool) -> None:
+        """Alterna entre janela e tela cheia, preservando a MESMA resolucao
+        logica passada a `initialize` (`get_viewport_size()` continua
+        retornando o mesmo valor nos dois modos -- backends concretos sao
+        responsaveis por isso, tipicamente escalando a resolucao logica
+        para a tela real em vez de trocar a resolucao logica em si).
+        Default: no-op (backends sem conceito de janela, como o Null,
+        continuam validos)."""
+
     def draw_effects(
         self,
         kinds: np.ndarray,

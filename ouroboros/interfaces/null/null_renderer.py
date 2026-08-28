@@ -28,10 +28,14 @@ class NullRenderer(IRenderer):
         self.draw_effects_calls = []
         self.draw_particles_calls = []
         self._loaded_textures = {}
+        self._is_fullscreen = False
 
     def initialize(self, width: int, height: int, title: str) -> None:
         self._width = width
         self._height = height
+
+    def set_fullscreen(self, enabled: bool) -> None:
+        self._is_fullscreen = enabled
 
     def begin_frame(self) -> None:
         self.begin_frame_count += 1
