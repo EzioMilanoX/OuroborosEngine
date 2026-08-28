@@ -26,6 +26,8 @@ class NullRenderer(IRenderer):
         self.end_frame_count = 0
         self.draw_batch_calls = []
         self.draw_effects_calls = []
+        self.draw_particles_calls = []
+        self._loaded_textures = {}
 
     def initialize(self, width: int, height: int, title: str) -> None:
         self._width = width
@@ -55,6 +57,18 @@ class NullRenderer(IRenderer):
         count: int,
     ) -> None:
         self.draw_effects_calls.append(count)
+
+    def draw_particles(
+        self,
+        positions_xy: np.ndarray,
+        sizes: np.ndarray,
+        tint_rgba: np.ndarray,
+        count: int,
+    ) -> None:
+        self.draw_particles_calls.append(count)
+
+    def load_texture(self, texture_id: int, file_path: str) -> None:
+        self._loaded_textures[texture_id] = file_path
 
     def end_frame(self) -> None:
         self.end_frame_count += 1

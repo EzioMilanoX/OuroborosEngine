@@ -78,6 +78,18 @@ class IRenderer(ABC):
         """Apresenta o frame renderizado (flip/present) e sincroniza com vsync, se aplicavel."""
         ...
 
+    @abstractmethod
+    def load_texture(self, texture_id: int, file_path: str) -> None:
+        """Pre-carrega e cacheia a imagem `file_path` sob o inteiro `texture_id`
+        (tipicamente `ouroboros.core.stable_id.stable_id_from_name` de um nome
+        amigavel, resolvido por um manifesto de assets -- ROADMAP M3), fora do
+        loop de gameplay. Espelha `IAudioEngine.load_sound`: capacidade central
+        que todo backend precisa implementar (nao uma extra opcional tipo
+        `draw_text`). `texture_id` passa a ser resolvivel por `draw_batch`/
+        `draw_effects` -- um `texture_id`/`kind` nunca carregado continua
+        caindo no fallback de forma primitiva (SHAPE_RECT/CIRCLE/RING)."""
+        ...
+
     # ------------------------------------------------------------------
     # Camada de APRESENTACAO (ROADMAP M1/M2): metodos NAO-abstratos com
     # default no-op — backends que nao os suportam continuam validos
@@ -124,6 +136,32 @@ class IRenderer(ABC):
             count: numero de entradas validas nos arrays acima.
 
         Default: no-op (backends que nao suportam fx continuam validos).
+        """
+
+    def draw_particles(
+        self,
+        positions_xy: np.ndarray,
+        sizes: np.ndarray,
+        tint_rgba: np.ndarray,
+        count: int,
+    ) -> None:
+        """
+        Desenha `count` particulas (`ouroboros.core.particle_storage.ParticleStorage`
+        -- ROADMAP M3) a partir de arrays SoA CRUS, com blend ADITIVO -- visualmente
+        diferente de `draw_batch`/`draw_effects` (alpha-blend), tipico de faisca/
+        explosao. Sem `kind`/rotacao/camada -- particulas desenham sempre a mesma
+        forma simples (um ponto/circulo cheio), na ordem do storage.
+
+        Args:
+            positions_xy: shape (N, 2) float32, coordenadas de mundo.
+            sizes: shape (N,) float32, diametro em pixels.
+            tint_rgba: shape (N, 4) uint8.
+            count: numero de entradas validas nos arrays acima.
+
+        Nao ha pool `World`-registrada de particulas (diferente de `fx`) --
+        chamar isto e responsabilidade explicita do chamador (tipicamente de
+        dentro do callback de `GameLoop.set_on_draw_ui`, ja que nao existe
+        cena/gather automatico para particulas). Default: no-op.
         """
 
     @abstractmethod

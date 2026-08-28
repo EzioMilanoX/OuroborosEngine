@@ -23,6 +23,17 @@ def test_null_renderer_is_a_real_irenderer(null_renderer):
     null_renderer.shutdown()
 
 
+def test_null_renderer_load_texture_and_draw_particles(null_renderer):
+    null_renderer.load_texture(7, "player.png")
+    assert null_renderer._loaded_textures[7] == "player.png"
+
+    empty_xy = np.zeros((0, 2), dtype=np.float32)
+    empty_1d = np.zeros(0, dtype=np.float32)
+    empty_rgba = np.zeros((0, 4), dtype=np.uint8)
+    null_renderer.draw_particles(empty_xy, empty_1d, empty_rgba, 0)
+    assert null_renderer.draw_particles_calls == [0]
+
+
 def test_null_input_provider_is_a_real_iinputprovider(null_input_provider):
     assert isinstance(null_input_provider, IInputProvider)
     assert null_input_provider.is_action_held("fire") is False

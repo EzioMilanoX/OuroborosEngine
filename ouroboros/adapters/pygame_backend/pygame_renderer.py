@@ -13,6 +13,7 @@ import pygame
 from ouroboros.interfaces.renderer import IRenderer, SHAPE_CIRCLE, SHAPE_RING
 
 _TEXT_CACHE_MAX = 512
+_TEXTURE_SCALE_CACHE_MAX = 512
 
 
 class PygameRenderer(IRenderer):
@@ -37,6 +38,14 @@ class PygameRenderer(IRenderer):
     Texto (ROADMAP M2): `draw_text` cacheia fontes por tamanho e
     superficies por (texto, tamanho, cor), com teto de cache -- chamavel
     apenas da camada de cenas/UI, nunca de ISystem.update().
+
+    Texturas (ROADMAP M3): `load_texture` cacheia a imagem crua por
+    `texture_id`; `_draw_shape` resolve um `texture_id`/`kind` carregado
+    ANTES de cair no fallback de forma primitiva. A superficie ESCALADA
+    (por `(texture_id, width, height)`) tambem e cacheada, com o mesmo
+    teto-e-limpa de `_text_cache` -- reescalar do zero em todo desenho,
+    mesmo opaco/sem tint, seria um gargalo real na escala que o ROADMAP
+    pede (milhares de sprites/frame).
     """
 
     def __init__(self) -> None:
@@ -47,6 +56,8 @@ class PygameRenderer(IRenderer):
         self._cam_dy = 0.0
         self._fonts: Dict[int, pygame.font.Font] = {}
         self._text_cache: Dict[tuple, pygame.Surface] = {}
+        self._textures: Dict[int, pygame.Surface] = {}
+        self._texture_scale_cache: Dict[tuple, pygame.Surface] = {}
 
     def initialize(self, width: int, height: int, title: str) -> None:
         pygame.init()
@@ -58,6 +69,9 @@ class PygameRenderer(IRenderer):
 
     def begin_frame(self) -> None:
         self._surface.fill((8, 8, 14))
+
+    def load_texture(self, texture_id: int, file_path: str) -> None:
+        self._textures[texture_id] = pygame.image.load(file_path).convert_alpha()
 
     def set_camera_offset(self, dx: float, dy: float) -> None:
         self._cam_dx = dx
@@ -110,10 +124,16 @@ class PygameRenderer(IRenderer):
     def _draw_shape(
         self, shape: int, x: float, y: float, width: int, height: int, r: int, g: int, b: int, a: int
     ) -> None:
-        """Desenha UMA forma primitiva (RECT/CIRCLE/RING) centrada em `(x, y)`, com
-        `width`/`height` em pixels -- compartilhado por `draw_batch` e `draw_effects`
-        (o mesmo leque de formas serve sprites e efeitos)."""
+        """Desenha UMA forma em `(x, y)` -- textura real se `shape` tiver uma
+        carregada via `load_texture` (ROADMAP M3), senao a forma primitiva
+        RECT/CIRCLE/RING (ROADMAP M1, fallback). Compartilhado por `draw_batch`
+        e `draw_effects` (o mesmo leque de formas/texturas serve sprites e
+        efeitos)."""
         if a <= 0:
+            return
+        texture = self._textures.get(shape)
+        if texture is not None:
+            self._draw_texture(shape, texture, x, y, width, height, r, g, b, a)
             return
         surf = self._surface
         if a >= 255:                              # opaco: direto
@@ -137,6 +157,60 @@ class PygameRenderer(IRenderer):
             else:
                 tmp.fill((r, g, b, a))
             surf.blit(tmp, (int(x - width / 2), int(y - height / 2)))
+
+    def _draw_texture(
+        self, shape: int, texture: pygame.Surface, x: float, y: float,
+        width: int, height: int, r: int, g: int, b: int, a: int,
+    ) -> None:
+        """Desenha a textura `texture` (ja carregada por `load_texture` sob `shape`)
+        escalada para `width`/`height`, com tint/alpha. A superficie ESCALADA (sem
+        tint/alpha aplicado) e cacheada por `(shape, width, height)` -- mesmo idioma
+        de tamanho-limitado-e-limpa-quando-cheio de `_text_cache` em `draw_text` --
+        e NUNCA mutada em si; tint/alpha sempre operam sobre uma `.copy()` fresca,
+        so quando de fato precisam ajustar algo (sprite opaco/sem tint reusa a
+        superficie cacheada direto, sem nenhuma copia)."""
+        cache_key = (shape, width, height)
+        scaled = self._texture_scale_cache.get(cache_key)
+        if scaled is None:
+            if len(self._texture_scale_cache) >= _TEXTURE_SCALE_CACHE_MAX:
+                self._texture_scale_cache.clear()
+            scaled = pygame.transform.scale(texture, (width, height))
+            self._texture_scale_cache[cache_key] = scaled
+
+        needs_tint = (r, g, b) != (255, 255, 255)
+        needs_alpha = a < 255
+        if needs_tint or needs_alpha:
+            scaled = scaled.copy()
+            if needs_tint:
+                scaled.fill((r, g, b, 255), special_flags=pygame.BLEND_RGBA_MULT)
+            if needs_alpha:
+                scaled.set_alpha(a)
+
+        self._surface.blit(scaled, (int(x - width / 2), int(y - height / 2)))
+
+    def draw_particles(
+        self,
+        positions_xy: np.ndarray,
+        sizes: np.ndarray,
+        tint_rgba: np.ndarray,
+        count: int,
+    ) -> None:
+        """Desenha `count` particulas como circulos pequenos cheios, com blend
+        ADITIVO (`pygame.BLEND_RGBA_ADD`) -- visualmente diferente do alpha-blend
+        de `draw_batch`/`draw_effects`, tipico de faisca/explosao."""
+        cam_dx, cam_dy = self._cam_dx, self._cam_dy
+        surf = self._surface
+        for i in range(count):
+            a = int(tint_rgba[i, 3])
+            if a <= 0:
+                continue
+            x = float(positions_xy[i, 0]) + cam_dx
+            y = float(positions_xy[i, 1]) + cam_dy
+            radius = max(1, int(sizes[i]) // 2)
+            r, g, b = int(tint_rgba[i, 0]), int(tint_rgba[i, 1]), int(tint_rgba[i, 2])
+            tmp = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
+            pygame.draw.circle(tmp, (r, g, b, a), (radius, radius), radius)
+            surf.blit(tmp, (int(x - radius), int(y - radius)), special_flags=pygame.BLEND_RGBA_ADD)
 
     def draw_ui_rect(self, x: float, y: float, w: float, h: float,
                      rgba: Tuple[int, int, int, int]) -> None:

@@ -31,6 +31,22 @@ def pygame_renderer():
     renderer.shutdown()
 
 
+@pytest.fixture
+def synthetic_png_factory(tmp_path, pygame_renderer):
+    """Fabrica um PNG sintetico (retangulo solido de uma cor conhecida), pra testar
+    load_texture/_draw_shape sem depender de nenhum asset real. Depende de `pygame_renderer`
+    so pra garantir que `pygame.display` ja foi inicializado antes de `pygame.image.save`."""
+
+    def _make(width: int = 8, height: int = 8, color=(255, 255, 255, 255)) -> str:
+        surf = pygame.Surface((width, height), pygame.SRCALPHA)
+        surf.fill(color)
+        path = tmp_path / f"synthetic_{color[0]}_{color[1]}_{color[2]}.png"
+        pygame.image.save(surf, str(path))
+        return str(path)
+
+    return _make
+
+
 def test_pygame_renderer_is_a_real_irenderer_and_initializes_headless(pygame_renderer):
     assert isinstance(pygame_renderer, IRenderer)
     assert pygame_renderer.get_viewport_size() == (320, 240)
@@ -81,6 +97,79 @@ def test_pygame_renderer_draw_batch_renders_ring_outline_not_filled(pygame_rende
     ring_pixels = [tuple(surface.get_at((50 + offset, 50)))[:3] for offset in range(20, 26)]
     assert center != (255, 0, 0)
     assert (255, 0, 0) in ring_pixels
+
+
+def test_pygame_renderer_draws_a_loaded_texture_tinted(pygame_renderer, synthetic_png_factory):
+    """Uma textura BRANCA (255,255,255,255) desenhada com um tint vira exatamente a cor
+    do tint (BLEND_RGBA_MULT: 255*x/255 == x) -- prova de que a textura real (nao a forma
+    primitiva) foi de fato desenhada e tintada corretamente."""
+    texture_path = synthetic_png_factory(width=8, height=8, color=(255, 255, 255, 255))
+    texture_id = 1000  # acima de SHAPE_MAX -- nunca colide com as formas primitivas
+    pygame_renderer.load_texture(texture_id, texture_path)
+
+    pygame_renderer.begin_frame()
+    positions_xy = np.array([[50.0, 50.0]], dtype=np.float32)
+    rotations_rad = np.zeros(1, dtype=np.float32)
+    scales_xy = np.array([[1.0, 1.0]], dtype=np.float32)  # width=height=8, mesmo tamanho da textura
+    texture_ids = np.array([texture_id], dtype=np.uint32)
+    tint_rgba = np.array([[10, 200, 30, 255]], dtype=np.uint8)
+    layer_z = np.zeros(1, dtype=np.int16)
+
+    pygame_renderer.draw_batch(positions_xy, rotations_rad, scales_xy, texture_ids, tint_rgba, layer_z, 1)
+    pygame_renderer.end_frame()
+
+    surface = pygame.display.get_surface()
+    assert tuple(surface.get_at((50, 50)))[:3] == (10, 200, 30)
+
+
+def test_pygame_renderer_falls_back_to_primitive_shape_when_texture_id_never_loaded(pygame_renderer):
+    """Um texture_id nunca carregado via load_texture cai no fallback de forma primitiva
+    (ROADMAP M3) -- aqui, um id fora de SHAPE_RECT/CIRCLE/RING cai no retangulo (`else`)."""
+    pygame_renderer.begin_frame()
+    positions_xy = np.array([[50.0, 50.0]], dtype=np.float32)
+    rotations_rad = np.zeros(1, dtype=np.float32)
+    scales_xy = np.array([[2.0, 2.0]], dtype=np.float32)
+    texture_ids = np.array([9999], dtype=np.uint32)  # nunca carregado
+    tint_rgba = np.array([[255, 0, 0, 255]], dtype=np.uint8)
+    layer_z = np.zeros(1, dtype=np.int16)
+
+    pygame_renderer.draw_batch(positions_xy, rotations_rad, scales_xy, texture_ids, tint_rgba, layer_z, 1)
+    pygame_renderer.end_frame()
+
+    surface = pygame.display.get_surface()
+    assert tuple(surface.get_at((50, 50)))[:3] == (255, 0, 0)
+
+
+def test_pygame_renderer_draw_particles_uses_additive_blend(pygame_renderer):
+    """Duas particulas semi-brilhantes sobrepostas resultam MAIS CLARAS que qualquer uma
+    sozinha -- prova de que o blend e ADITIVO (soma de cor), nao alpha-blend comum (onde a
+    segunda simplesmente cobriria a primeira)."""
+    pygame_renderer.begin_frame()
+    one_xy = np.array([[80.0, 80.0]], dtype=np.float32)
+    one_sizes = np.array([20.0], dtype=np.float32)
+    one_tint = np.array([[100, 0, 0, 255]], dtype=np.uint8)
+    pygame_renderer.draw_particles(one_xy, one_sizes, one_tint, 1)
+    pygame_renderer.end_frame()
+    single_particle_r = pygame.display.get_surface().get_at((80, 80))[0]
+
+    pygame_renderer.begin_frame()  # limpa e desenha as MESMAS duas particulas sobrepostas
+    two_xy = np.array([[80.0, 80.0], [80.0, 80.0]], dtype=np.float32)
+    two_sizes = np.array([20.0, 20.0], dtype=np.float32)
+    two_tint = np.array([[100, 0, 0, 255], [100, 0, 0, 255]], dtype=np.uint8)
+    pygame_renderer.draw_particles(two_xy, two_sizes, two_tint, 2)
+    pygame_renderer.end_frame()
+    overlapping_particles_r = pygame.display.get_surface().get_at((80, 80))[0]
+
+    assert overlapping_particles_r > single_particle_r
+
+
+def test_pygame_renderer_draw_particles_with_zero_count_is_noop(pygame_renderer):
+    empty_xy = np.zeros((0, 2), dtype=np.float32)
+    empty_1d = np.zeros(0, dtype=np.float32)
+    empty_rgba = np.zeros((0, 4), dtype=np.uint8)
+    pygame_renderer.begin_frame()
+    pygame_renderer.draw_particles(empty_xy, empty_1d, empty_rgba, 0)
+    pygame_renderer.end_frame()
 
 
 def test_pygame_renderer_draw_effects_runs_without_a_real_display(pygame_renderer):
