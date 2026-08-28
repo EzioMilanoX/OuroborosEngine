@@ -21,10 +21,10 @@ Musical— e teve seu nucleo ECS provado por um terceiro, o port do BulletHell
    Arrays); nenhuma instanciacao dinamica de objetos Python durante
    `World.step()`.
 2. **Separacao Logic vs Presentation**: `ouroboros.core`/`roguelite`/`rhythm`
-   nunca importam `pygame`/`godot` diretamente — apenas `ouroboros.interfaces`
-   (ABCs). Backends concretos vivem isolados em `ouroboros.adapters` (ver
-   `tooling/import_linter_contracts.ini`, verificado no CI a cada push/PR —
-   `.github/workflows/ci.yml`).
+   nunca importam um backend concreto (`pygame`) diretamente — apenas
+   `ouroboros.interfaces` (ABCs). Backends concretos vivem isolados em
+   `ouroboros.adapters` (ver `tooling/import_linter_contracts.ini`,
+   verificado no CI a cada push/PR — `.github/workflows/ci.yml`).
 3. **Data-Driven**: dificuldades, armas, arquetipos, beatmaps e bindings de
    input vem de `data/*.json`, nunca hardcoded em codigo Python.
 
@@ -40,11 +40,16 @@ Musical— e teve seu nucleo ECS provado por um terceiro, o port do BulletHell
 
 ## Status
 
-O roadmap pos-BulletHell (Fase 1, M1-M6) esta concluido: apresentacao 2.0
-(formas/alpha/fx), texto e `SceneStack`, texturas e particulas, audio
-data-driven, ergonomia do nucleo, e os dois vertical slices acima. Detalhes
-e a Fase 2 (infraestrutura, adocao no BulletHell, aprofundamento dos
-produtos) estao em `ROADMAP.md`.
+A Fase 1 do roadmap (M1-M6) esta concluida: apresentacao 2.0 (formas/alpha/
+fx), texto e `SceneStack`, texturas e particulas, audio data-driven,
+ergonomia do nucleo, e os dois vertical slices acima. Da Fase 2 (M7-M11),
+tambem concluidos: CI real + este README (M7); release da engine + adocao
+completa no BulletHell -- SceneStack, particulas, screen shake, audio banks,
+fullscreen (M8, cross-repo); `UniformGrid`/`DungeonStreamingSystem` postos
+pra funcionar de verdade + limpeza do placeholder vazio de um backend Godot
+(M9). Faltam M10 (Roguelite: variedade de sala, segunda arma, dificuldade) e
+M11 (Jogo Musical: menu, segundo beatmap, particulas/textura no acerto) --
+detalhes completos em `ROADMAP.md`.
 
 ## Rodando localmente
 
