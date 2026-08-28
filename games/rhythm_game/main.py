@@ -10,7 +10,7 @@ raiz do repo em `sys.path`, o que so acontece automaticamente no modo
 
     python -m games.rhythm_game.main
 
-Controles: D/F/J/K para as 4 lanes, ESC para sair.
+Controles: A/S/W/D para as 4 lanes, P para pausar/continuar, ESC para sair.
 """
 from __future__ import annotations
 

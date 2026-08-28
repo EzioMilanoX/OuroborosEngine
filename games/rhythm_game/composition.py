@@ -23,6 +23,8 @@ from ouroboros.rhythm.runtime.rhythm_spawner_system import RhythmSpawnerSystem
 from ouroboros.rhythm.runtime.schemas import NOTE_STATE_DTYPE
 
 from games.rhythm_game.hud import build_hud_callback
+from games.rhythm_game.pause_scene import PauseScene
+from games.rhythm_game.systems.pause_on_action_system import PauseOnActionSystem
 from games.rhythm_game.systems.quit_on_action_system import QuitOnActionSystem
 
 ARCHETYPE_NAME = "rhythm_note"
@@ -188,6 +190,19 @@ def build_game(config: EngineConfig) -> GameLoop:
     world.register_system(scroll)
     world.register_system(judgment)
     world.register_system(QuitOnActionSystem(game_loop.input_provider, game_loop))
+
+    # A GameplayScene base ja foi auto-empilhada por GameLoop.__init__ (ROADMAP M2) --
+    # a PauseScene reusa essa MESMA instancia pra redesenhar o ultimo frame congelado
+    # por baixo do overlay de pausa, sem duplicar a logica de gather+draw.
+    pause_scene = PauseScene(
+        input_provider=game_loop.input_provider,
+        game_loop=game_loop,
+        audio_engine=game_loop.audio_engine,
+        track_id=TRACK_ID,
+        gameplay_scene=game_loop.current_scene,
+        viewport_size=(config.window_width, config.window_height),
+    )
+    world.register_system(PauseOnActionSystem(game_loop.input_provider, game_loop, pause_scene))
 
     game_loop.audio_engine.load_track(TRACK_ID, str(TRACK_AUDIO_PATH))
     game_loop.audio_engine.play_track(TRACK_ID)

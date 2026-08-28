@@ -3,5 +3,6 @@
   "lane_1": "KEY_S",
   "lane_2": "KEY_W",
   "lane_3": "KEY_D",
-  "quit": "KEY_ESCAPE"
+  "quit": "KEY_ESCAPE",
+  "pause": "KEY_P"
 }

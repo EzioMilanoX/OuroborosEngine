@@ -17,6 +17,7 @@ from ouroboros.bootstrap.engine_config import EngineConfig
 from ouroboros.bootstrap.game_loop import GameLoop
 
 from ouroboros.bootstrap.audio_bank_loader import AudioBankDefinitionError
+from ouroboros.bootstrap.scene import GameplayScene
 
 from games.rhythm_game import composition
 from games.rhythm_game.composition import (
@@ -25,6 +26,7 @@ from games.rhythm_game.composition import (
     THREAT_TYPE_POOL_NAME,
     build_game,
 )
+from games.rhythm_game.pause_scene import PauseScene
 
 _JUDGMENT_LINE_Y = 500.0  # config.json: window_height=600 -> judgment_line_y = 600 - 100 (ver composition.py)
 
@@ -129,3 +131,70 @@ def test_spawned_notes_have_real_lead_time_above_the_judgment_line(game_loop: Ga
         "nota deveria estar visivelmente ACIMA da linha de julgamento logo apos nascer "
         "(antecedencia real via approach_seconds), nao em cima dela"
     )
+
+
+def _rig_pause_toggle_on_frame(game_loop: GameLoop, toggle_on_frame_indices):
+    """Instrumenta `game_loop.input_provider` com um contador de polls e faz
+    `is_action_pressed("pause")` retornar True exatamente nos indices de frame (0-based)
+    listados em `toggle_on_frame_indices` -- outras acoes continuam com o comportamento
+    real (sempre False, ja que nada simula tecla nenhuma sob o driver dummy)."""
+    frame_count = {"n": 0}
+    original_poll = game_loop.input_provider.poll
+    original_is_action_pressed = game_loop.input_provider.is_action_pressed
+
+    def counting_poll() -> None:
+        original_poll()
+        frame_count["n"] += 1
+
+    def fake_is_action_pressed(action_name: str) -> bool:
+        if action_name == "pause":
+            return frame_count["n"] in toggle_on_frame_indices
+        return original_is_action_pressed(action_name)
+
+    game_loop.input_provider.poll = counting_poll
+    game_loop.input_provider.is_action_pressed = fake_is_action_pressed
+    return frame_count
+
+
+def test_pressing_pause_pushes_pause_scene_and_freezes_the_world(game_loop: GameLoop):
+    frame_count = _rig_pause_toggle_on_frame(game_loop, toggle_on_frame_indices={2})
+    game_loop.input_provider.wants_quit = lambda: frame_count["n"] >= 3
+
+    game_loop.run()
+
+    assert isinstance(game_loop.current_scene, PauseScene)
+
+
+def test_world_and_audio_clock_stay_frozen_while_paused(game_loop: GameLoop):
+    frame_count = _rig_pause_toggle_on_frame(game_loop, toggle_on_frame_indices={2})
+    game_loop.input_provider.wants_quit = lambda: frame_count["n"] >= 3
+    game_loop.run()
+    assert isinstance(game_loop.current_scene, PauseScene)
+
+    note_count_at_pause = game_loop.world.get_pool(NOTE_STATE_POOL_NAME).count
+    clock = game_loop.audio_engine.get_clock()
+    frozen_at = clock.now_seconds()
+    assert clock.is_playing() is False
+
+    # roda mais alguns frames "pausado" -- nada deve mudar, mesmo com tempo real passando
+    game_loop.input_provider.wants_quit = lambda: frame_count["n"] >= 8
+    game_loop.run()
+
+    assert game_loop.world.get_pool(NOTE_STATE_POOL_NAME).count == note_count_at_pause
+    assert clock.now_seconds() == frozen_at
+
+
+def test_pressing_pause_again_pops_back_to_gameplay_and_resumes_audio(game_loop: GameLoop):
+    """Nota: a prova de que o audio realmente CONGELA (nao avanca contra o tempo real de
+    parede) e continua do valor certo ao retomar (nao reseta) ja e feita de forma direta e
+    determinística em `tests/interfaces/test_pygame_backend_headless.py`
+    (`test_pygame_audio_clock_freezes_now_seconds_while_paused`/`..._resumes_from_the_frozen_value...`)
+    -- aqui so confirmamos que o ciclo completo de push/pop via input de verdade funciona."""
+    frame_count = _rig_pause_toggle_on_frame(game_loop, toggle_on_frame_indices={2, 6})
+    game_loop.input_provider.wants_quit = lambda: frame_count["n"] >= 7
+
+    game_loop.run()
+
+    assert isinstance(game_loop.current_scene, GameplayScene)
+    clock = game_loop.audio_engine.get_clock()
+    assert clock.is_playing() is True
