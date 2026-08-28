@@ -49,6 +49,21 @@ class GameLoop:
         composicao de produto registrar arquetipos/sistemas por cima antes de `run()`."""
         return self._world
 
+    def replace_world(self, new_world: World) -> None:
+        """
+        Troca o `World` associado a este `GameLoop`, mais nada -- cenas,
+        renderer, input e audio continuam os mesmos. Mutacao pos-construcao
+        via metodo explicito (mesmo idioma de `stop()`/`set_on_draw_ui`).
+
+        Existe pra um produto cujo `World` nao vive pela vida inteira do
+        processo (ex.: um menu antes de qualquer partida, com uma nova
+        partida = um `World` novo a cada `start_game()`/retry) -- diferente
+        de todo produto atual (Jogo Musical, Roguelite), que constroi um
+        `World` so, uma vez, pra sempre. `GameLoop` continua sem saber POR
+        QUE o produto precisa disso -- so guarda a referencia nova.
+        """
+        self._world = new_world
+
     @property
     def renderer(self) -> IRenderer:
         """Acesso somente-leitura ao `IRenderer` montado por `CompositionRoot`."""
@@ -95,6 +110,40 @@ class GameLoop:
         self._scenes[-1].on_enter(self._world, self._renderer)
         return popped
 
+    def reset_scenes(self, scene: IScene) -> None:
+        """
+        Substitui a pilha INTEIRA por `[scene]` -- reset completo e
+        deliberado, diferente de `push_scene`/`pop_scene` (que so
+        empilham/desempilham incrementalmente e nunca esvaziam a pilha:
+        `pop_scene()` levanta `RuntimeError` se so restar 1 cena). Chama
+        `on_exit` de quem estava no topo antes de trocar, e `on_enter` na
+        cena nova -- mesma simetria de `push_scene`/`pop_scene`.
+
+        Existe pra transicoes de "modo" inteiro, nao de overlay temporario:
+        um produto que alterna entre "menu" e "uma partida" (cada partida
+        podendo vir com um `World` novo via `replace_world`) usa isto pra
+        voltar a um estado limpo sem herdar cenas antigas empilhadas por
+        baixo (que `pop_scene` incremental nunca teria como remover de
+        uma vez, e simplesmente empilhar por cima cresceria sem limite ao
+        longo de uma sessao longa).
+        """
+        self._scenes[-1].on_exit(self._world, self._renderer)
+        self._scenes = [scene]
+        scene.on_enter(self._world, self._renderer)
+
+    def tick_once(self, delta_time: float) -> None:
+        """
+        Roda UM frame do corpo interno de `run()` -- `update()` da cena no
+        topo da pilha seguido de `_render_frame()` -- SEM o `while`, sem
+        chamar `input_provider.poll()` (fica a cargo do chamador) e sem o
+        limitador de framerate por `time.sleep`. Existe pra quem precisa de
+        controle frame-a-frame sem bloquear em `run()` (ex.: um harness de
+        teste que dirige o loop manualmente, decidindo seu proprio
+        `delta_time` a cada chamada).
+        """
+        self._scenes[-1].update(self._world, delta_time)
+        self._render_frame()
+
     def set_on_draw_ui(self, callback: Optional[Callable[[IRenderer], None]]) -> None:
         """
         Registra (ou remove, passando `None`) um callback de HUD/UI chamado uma vez por
@@ -140,8 +189,7 @@ class GameLoop:
             delta_time = now - last_time
             last_time = now
 
-            self._scenes[-1].update(self._world, delta_time)
-            self._render_frame()
+            self.tick_once(delta_time)
 
             elapsed = time.perf_counter() - now
             if min_frame_seconds > elapsed:

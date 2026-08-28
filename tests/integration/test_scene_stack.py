@@ -112,6 +112,69 @@ def test_run_calls_update_and_render_only_on_the_top_scene(game_loop: GameLoop, 
     assert calls == [("update", "a"), ("render", "a")] * 3
 
 
+def test_replace_world_swaps_the_world_and_nothing_else(game_loop: GameLoop, memory_manager):
+    from ouroboros.core.world import World
+
+    original_world = game_loop.world
+    new_world = World(memory_manager)
+
+    game_loop.replace_world(new_world)
+
+    assert game_loop.world is new_world
+    assert game_loop.world is not original_world
+
+
+def test_replace_world_then_run_still_works(game_loop: GameLoop, memory_manager, bind_quit_after):
+    from ouroboros.core.world import World
+
+    game_loop.replace_world(World(memory_manager))
+    bind_quit_after(game_loop.input_provider, quit_after=2)
+
+    game_loop.run()  # nao deve levantar erro -- GameplayScene.update/render seguem funcionando
+
+
+def test_reset_scenes_replaces_the_whole_stack_with_a_single_scene(game_loop: GameLoop):
+    calls = []
+    scene_a = RecordingScene("a", calls)
+    scene_b = RecordingScene("b", calls)
+    game_loop.push_scene(scene_a)
+    game_loop.push_scene(scene_b)
+    calls.clear()
+
+    scene_c = RecordingScene("c", calls)
+    game_loop.reset_scenes(scene_c)
+
+    assert game_loop.current_scene is scene_c
+    assert calls == [("on_exit", "b"), ("on_enter", "c")]
+    # a pilha inteira foi substituida -- so 1 pop possivel agora levanta, nao 3
+    with pytest.raises(RuntimeError):
+        game_loop.pop_scene()
+
+
+def test_reset_scenes_from_the_base_gameplay_scene_works(game_loop: GameLoop):
+    calls = []
+    scene_a = RecordingScene("a", calls)
+
+    game_loop.reset_scenes(scene_a)
+
+    assert game_loop.current_scene is scene_a
+    assert calls == [("on_enter", "a")]  # base GameplayScene nao registra chamadas
+
+
+def test_tick_once_runs_exactly_one_update_and_render_without_polling(game_loop: GameLoop):
+    calls = []
+    scene_a = RecordingScene("a", calls)
+    game_loop.push_scene(scene_a)
+    calls.clear()
+    poll_calls = []
+    game_loop.input_provider.poll = lambda: poll_calls.append(1)
+
+    game_loop.tick_once(1 / 60)
+
+    assert calls == [("update", "a"), ("render", "a")]
+    assert poll_calls == []  # tick_once nunca chama poll() sozinho -- fica a cargo do chamador
+
+
 def test_game_loop_behavior_is_unchanged_when_no_scene_is_ever_pushed(
     memory_manager, world, null_renderer, null_audio_engine, bind_quit_after
 ):
