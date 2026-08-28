@@ -42,6 +42,18 @@ class NullAudioEngine(IAudioEngine):
             self._playing_track_id = None
             self._clock.set_playing(False)
 
+    def pause_track(self, track_id: str) -> None:
+        """Nao zera `_playing_track_id` (diferente de `stop_track`) -- `resume_track`
+        precisa saber qual faixa retomar. `NullAudioClock.now_seconds()` nunca
+        auto-avanca sozinho (so via `advance()`/`set_now_seconds()` explicitos de
+        teste), entao nao precisa de nenhum estado de "congelado"."""
+        if self._playing_track_id == track_id:
+            self._clock.set_playing(False)
+
+    def resume_track(self, track_id: str) -> None:
+        if self._playing_track_id == track_id:
+            self._clock.set_playing(True)
+
     def play_one_shot(self, sound_id: str, volume: float = 1.0) -> None:
         self._one_shots_played.append((sound_id, volume))
 

@@ -75,6 +75,30 @@ def test_null_audio_engine_load_sound_and_register_tone_are_recorded(null_audio_
     assert null_audio_engine._one_shots_played == [("hit", 0.8)]
 
 
+def test_null_audio_engine_pause_and_resume_track(null_audio_engine):
+    clock = null_audio_engine.get_clock()
+    null_audio_engine.load_track("song", "song.ogg")
+    null_audio_engine.play_track("song")
+    assert clock.is_playing() is True
+
+    null_audio_engine.pause_track("song")
+    assert clock.is_playing() is False
+    assert null_audio_engine._playing_track_id == "song"  # nao zera, diferente de stop_track
+
+    null_audio_engine.resume_track("song")
+    assert clock.is_playing() is True
+
+
+def test_null_audio_engine_pause_track_ignores_a_different_track_id(null_audio_engine):
+    clock = null_audio_engine.get_clock()
+    null_audio_engine.load_track("song", "song.ogg")
+    null_audio_engine.play_track("song")
+
+    null_audio_engine.pause_track("outra_faixa_qualquer")
+
+    assert clock.is_playing() is True
+
+
 def test_null_audio_clock_is_shared_between_engine_and_fixture(null_audio_engine, null_audio_clock):
     assert null_audio_clock is null_audio_engine.get_clock()
 

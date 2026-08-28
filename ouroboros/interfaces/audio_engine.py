@@ -33,6 +33,20 @@ class IAudioEngine(ABC):
         ...
 
     @abstractmethod
+    def pause_track(self, track_id: str) -> None:
+        """Pausa a reproducao de `track_id` (se for a faixa atual) SEM resetar a
+        posicao -- `get_clock().now_seconds()` congela no valor exato do momento
+        da pausa ate `resume_track` (ROADMAP M2 -- pilha de cenas/pausa)."""
+        ...
+
+    @abstractmethod
+    def resume_track(self, track_id: str) -> None:
+        """Retoma `track_id` (se for a faixa atual e estiver pausada) exatamente de
+        onde parou -- `get_clock().now_seconds()` volta a avancar a partir do valor
+        congelado por `pause_track`, nunca de um reset."""
+        ...
+
+    @abstractmethod
     def load_sound(self, sound_id: str, file_path: str) -> None:
         """Pre-carrega e cacheia `file_path` como um efeito sonoro curto sob o
         nome `sound_id`, fora do loop de gameplay -- espelha `load_track`, mas

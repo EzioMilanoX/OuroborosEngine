@@ -6,22 +6,13 @@
 from __future__ import annotations
 
 import time
-from typing import Callable, Optional
+from typing import Callable, List, Optional
 
-import numpy as np
-
-from ouroboros.core.memory.component_pool import intersect_entity_indices
+from ouroboros.bootstrap.scene import GameplayScene, IScene
 from ouroboros.core.world import World
 from ouroboros.interfaces.audio_engine import IAudioEngine
 from ouroboros.interfaces.input_provider import IInputProvider
 from ouroboros.interfaces.renderer import IRenderer
-
-_EMPTY_XY = np.zeros((0, 2), dtype=np.float32)
-_EMPTY_F32 = np.zeros(0, dtype=np.float32)
-_EMPTY_U32 = np.zeros(0, dtype=np.uint32)
-_EMPTY_RGBA = np.zeros((0, 4), dtype=np.uint8)
-_EMPTY_I16 = np.zeros(0, dtype=np.int16)
-_EMPTY_KINDS = np.zeros(0, dtype=np.uint32)
 
 
 class GameLoop:
@@ -29,7 +20,8 @@ class GameLoop:
     Laco de frame que conecta `IInputProvider`, `World` e `IRenderer` --
     a unica classe que "conhece" os tres ao mesmo tempo fora de
     `CompositionRoot`. Nao contem regra de gameplay: isso vive nos
-    `ISystem` registrados no `World`.
+    `ISystem` registrados no `World` (via a `GameplayScene` padrao) ou
+    em `IScene`s adicionais empilhadas por um produto (ROADMAP M2).
     """
 
     def __init__(
@@ -40,7 +32,8 @@ class GameLoop:
         audio_engine: IAudioEngine,
         target_fps: int = 60,
     ) -> None:
-        """Guarda as dependencias ja construidas por `CompositionRoot`."""
+        """Guarda as dependencias ja construidas por `CompositionRoot` e empilha
+        uma `GameplayScene` como base da pilha de cenas -- a pilha nunca fica vazia."""
         self._world = world
         self._renderer = renderer
         self._input_provider = input_provider
@@ -48,6 +41,7 @@ class GameLoop:
         self._target_fps = target_fps
         self._running = False
         self._on_draw_ui: Optional[Callable[[IRenderer], None]] = None
+        self._scenes: List[IScene] = [GameplayScene()]
 
     @property
     def world(self) -> World:
@@ -70,10 +64,44 @@ class GameLoop:
         """Acesso somente-leitura ao `IAudioEngine` montado por `CompositionRoot`."""
         return self._audio_engine
 
+    @property
+    def current_scene(self) -> IScene:
+        """Cena atualmente no topo da pilha (a `GameplayScene` padrao, se nada mais foi empilhado)."""
+        return self._scenes[-1]
+
+    def push_scene(self, scene: IScene) -> None:
+        """
+        Empilha `scene` como a nova cena ativa (ROADMAP M2): chama
+        `on_exit` da cena que estava no topo (encoberta, nao removida)
+        e `on_enter` da nova cena. A partir daqui, `run()` chama
+        `update()`/`render()` de `scene`, nao mais da anterior.
+        """
+        if self._scenes:
+            self._scenes[-1].on_exit(self._world, self._renderer)
+        self._scenes.append(scene)
+        scene.on_enter(self._world, self._renderer)
+
+    def pop_scene(self) -> IScene:
+        """
+        Remove a cena no topo da pilha e revela a anterior: chama
+        `on_exit` da cena removida e `on_enter` da cena revelada.
+        Levanta `RuntimeError` se so restar a `GameplayScene` base --
+        ela nunca pode ser removida (a pilha nao pode ficar vazia).
+        """
+        if len(self._scenes) <= 1:
+            raise RuntimeError("GameLoop.pop_scene: nao e possivel remover a cena base (pilha ficaria vazia)")
+        popped = self._scenes.pop()
+        popped.on_exit(self._world, self._renderer)
+        self._scenes[-1].on_enter(self._world, self._renderer)
+        return popped
+
     def set_on_draw_ui(self, callback: Optional[Callable[[IRenderer], None]]) -> None:
         """
         Registra (ou remove, passando `None`) um callback de HUD/UI chamado uma vez por
-        frame, depois de `draw_batch(...)` e antes de `end_frame()`.
+        frame, depois do `render()` da cena ativa e antes de `end_frame()`. GLOBAL --
+        roda independente de qual cena esta no topo (decisao consciente do SceneStack:
+        um HUD de score continuar visivel sob uma cena de pausa, por exemplo, e aceitavel
+        e evita a superficie nova de callbacks por-cena).
 
         Mutacao pos-construcao via metodo explicito (mesmo idioma de `stop()`), nao um
         parametro de construtor: o callback tipicamente fecha sobre objetos (ex.: um
@@ -89,12 +117,13 @@ class GameLoop:
     def run(self) -> None:
         """
         Laco principal: enquanto nao `input_provider.wants_quit()`,
-        chama `input_provider.poll()`, `world.step(delta_time)` e
-        `renderer.begin_frame()/draw_batch(...)/end_frame()`, lendo os
-        arrays SoA relevantes das pools do `World` para repassar a
-        `draw_batch`. `delta_time` nunca e usado para decidir eventos
-        sincronizados a audio -- isso e responsabilidade dos Systems
-        que consultam `IAudioClock` diretamente (ver Pilar 4).
+        chama `input_provider.poll()`, `update()` da cena no topo da
+        pilha (ROADMAP M2 -- a `GameplayScene` padrao so chama
+        `world.step(delta_time)`, mesmo comportamento de antes do
+        SceneStack existir) e `_render_frame()`. `delta_time` nunca e
+        usado para decidir eventos sincronizados a audio -- isso e
+        responsabilidade dos Systems que consultam `IAudioClock`
+        diretamente (ver Pilar 4).
 
         Timing via `time.perf_counter()` (stdlib) -- nunca
         `pygame.time.Clock`, para que `ouroboros.bootstrap` continue sem
@@ -111,7 +140,7 @@ class GameLoop:
             delta_time = now - last_time
             last_time = now
 
-            self._world.step(delta_time)
+            self._scenes[-1].update(self._world, delta_time)
             self._render_frame()
 
             elapsed = time.perf_counter() - now
@@ -123,50 +152,12 @@ class GameLoop:
         self._running = False
 
     def _render_frame(self) -> None:
-        """Coleta as views SoA de `transform`+`sprite` e repassa a `IRenderer.draw_batch` em uma
-        unica chamada, depois faz o mesmo para a pool `fx` (ROADMAP M1.3) via `draw_effects` --
-        sempre existe (criada por `COMPONENT_SCHEMAS`), entao nunca precisa de `has_pool`; se
-        nenhum produto a usa, `count` fica 0 pra sempre (custo desprezivel)."""
-        transform_pool = self._world.get_pool("transform")
-        sprite_pool = self._world.get_pool("sprite")
-        entity_indices = intersect_entity_indices(transform_pool, sprite_pool)
-        count = int(entity_indices.shape[0])
-
+        """`begin_frame()` -> `render()` da cena no topo da pilha -> callback global de
+        UI (se registrado) -> `end_frame()`. A logica de desenho em si (gather de pools,
+        `draw_batch`/`draw_effects`) vive em `GameplayScene.render` (ou em qualquer outra
+        `IScene` empilhada), nao aqui."""
         self._renderer.begin_frame()
-        if count == 0:
-            self._renderer.draw_batch(_EMPTY_XY, _EMPTY_F32, _EMPTY_XY, _EMPTY_U32, _EMPTY_RGBA, _EMPTY_I16, 0)
-        else:
-            t_rows = transform_pool.dense_rows_of(entity_indices)
-            s_rows = sprite_pool.dense_rows_of(entity_indices)
-            t_view = transform_pool.active_view()
-            s_view = sprite_pool.active_view()
-
-            positions_xy = np.stack([t_view["position_x"][t_rows], t_view["position_y"][t_rows]], axis=1)
-            rotations_rad = t_view["rotation_rad"][t_rows]
-            scales_xy = np.stack([t_view["scale_x"][t_rows], t_view["scale_y"][t_rows]], axis=1)
-            texture_ids = s_view["texture_id"][s_rows]
-            tint_rgba = np.stack(
-                [s_view["tint_r"][s_rows], s_view["tint_g"][s_rows], s_view["tint_b"][s_rows], s_view["tint_a"][s_rows]],
-                axis=1,
-            )
-            layer_z = s_view["layer_z"][s_rows]
-
-            self._renderer.draw_batch(positions_xy, rotations_rad, scales_xy, texture_ids, tint_rgba, layer_z, count)
-
-        fx_pool = self._world.get_pool("fx")
-        fx_count = fx_pool.count
-        if fx_count == 0:
-            self._renderer.draw_effects(_EMPTY_KINDS, _EMPTY_XY, _EMPTY_XY, _EMPTY_RGBA, 0)
-        else:
-            fx_view = fx_pool.active_view()
-            fx_kinds = fx_view["kind"]
-            fx_positions_xy = np.stack([fx_view["position_x"], fx_view["position_y"]], axis=1)
-            fx_sizes_wh = np.stack([fx_view["width"], fx_view["height"]], axis=1)
-            fx_tint_rgba = np.stack(
-                [fx_view["tint_r"], fx_view["tint_g"], fx_view["tint_b"], fx_view["tint_a"]], axis=1
-            )
-            self._renderer.draw_effects(fx_kinds, fx_positions_xy, fx_sizes_wh, fx_tint_rgba, fx_count)
-
+        self._scenes[-1].render(self._world, self._renderer)
         if self._on_draw_ui is not None:
             self._on_draw_ui(self._renderer)
         self._renderer.end_frame()

@@ -195,6 +195,55 @@ def test_pygame_audio_clock_now_seconds_is_zero_when_stopped_even_if_get_pos_is_
     assert clock.now_seconds() == 0.0
 
 
+def test_pygame_audio_clock_freezes_now_seconds_while_paused(pygame_audio_engine, synthetic_wav_factory):
+    """
+    Regressao (ROADMAP M2): confirmado empiricamente que, sob o driver dummy do SDL,
+    `get_busy()` volta `False` DURANTE uma pausa (diferente de tocando de verdade), mas
+    `get_pos()` congela corretamente. `now_seconds()` nao pode depender de `is_playing()`
+    continuar `True` durante a pausa -- precisa congelar sozinho via `_is_paused`.
+    """
+    audio_path = synthetic_wav_factory(bpm=120.0, duration_seconds=2.0)
+    pygame_audio_engine.load_track("song", audio_path)
+    clock = pygame_audio_engine.get_clock()
+
+    pygame_audio_engine.play_track("song")
+    time.sleep(0.2)
+    pygame_audio_engine.pause_track("song")
+    frozen_at = clock.now_seconds()
+
+    time.sleep(0.3)  # tempo de parede real passa -- now_seconds() nao pode avancar
+
+    assert clock.now_seconds() == frozen_at
+
+
+def test_pygame_audio_clock_resumes_from_the_frozen_value_not_a_reset(pygame_audio_engine, synthetic_wav_factory):
+    audio_path = synthetic_wav_factory(bpm=120.0, duration_seconds=2.0)
+    pygame_audio_engine.load_track("song", audio_path)
+    clock = pygame_audio_engine.get_clock()
+
+    pygame_audio_engine.play_track("song")
+    time.sleep(0.2)
+    pygame_audio_engine.pause_track("song")
+    frozen_at = clock.now_seconds()
+
+    pygame_audio_engine.resume_track("song")
+    time.sleep(0.1)
+
+    assert clock.is_playing() is True
+    assert clock.now_seconds() >= frozen_at  # continua do valor congelado, nunca reseta a 0
+
+
+def test_pygame_audio_engine_pause_resume_track_ignores_a_different_track_id(pygame_audio_engine, synthetic_wav_factory):
+    audio_path = synthetic_wav_factory(bpm=120.0, duration_seconds=1.0)
+    pygame_audio_engine.load_track("song", audio_path)
+    pygame_audio_engine.play_track("song")
+    clock = pygame_audio_engine.get_clock()
+
+    pygame_audio_engine.pause_track("outra_faixa_qualquer")  # nao deve afetar "song"
+
+    assert clock.is_playing() is True
+
+
 def test_pygame_audio_clock_reflects_start_offset(pygame_audio_engine, synthetic_wav_factory):
     audio_path = synthetic_wav_factory(bpm=120.0, duration_seconds=2.0)
     pygame_audio_engine.load_track("song", audio_path)

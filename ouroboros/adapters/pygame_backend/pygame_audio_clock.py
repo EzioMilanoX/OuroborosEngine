@@ -35,18 +35,46 @@ class PygameAudioClock(IAudioClock):
     reportaria um tempo de reproducao falso, positivo e crescente --
     quebrando o contrato de `IAudioClock` ("tempo REAL de reproducao,
     nunca um acumulador").
+
+    PAUSA (ROADMAP M2): `now_seconds()` checa `self._is_paused` ANTES de
+    consultar `is_playing()`/`get_pos()` -- confirmado empiricamente que,
+    sob o driver dummy do SDL, `get_busy()` (logo `is_playing()`) volta
+    `False` DURANTE uma pausa (`pygame.mixer.music.pause()`), embora
+    `get_pos()` continue congelando corretamente no valor certo (nao e
+    outro bug de driver como o do `stop()` acima -- so `get_busy()` que
+    nao reflete "pausado" como "tocando"). Por isso `now_seconds()` nao
+    pode depender de `is_playing()` continuar `True` durante a pausa;
+    guarda o proprio valor congelado (`self._paused_at_seconds`) em vez
+    disso.
     """
 
     def __init__(self) -> None:
         self._output_latency_seconds = 0.0
         self._playback_rate = 1.0
         self._start_offset_seconds = 0.0
+        self._is_paused = False
+        self._paused_at_seconds = 0.0
 
     def _set_start_offset(self, start_offset_seconds: float) -> None:
         """Chamado por `PygameAudioEngine.play_track` a cada novo `play()`."""
         self._start_offset_seconds = start_offset_seconds
 
+    def _pause(self) -> None:
+        """Chamado por `PygameAudioEngine.pause_track`: congela `now_seconds()`
+        no valor ATUAL (calculado antes de marcar como pausado)."""
+        self._paused_at_seconds = self.now_seconds()
+        self._is_paused = True
+
+    def _resume(self) -> None:
+        """Chamado por `PygameAudioEngine.resume_track`/`play_track`: limpa o
+        estado de pausa -- `now_seconds()` volta a derivar de `get_pos()`, que
+        ja continua corretamente de onde parou (confirmado empiricamente que
+        `get_pos()` congela e retoma certo através de pause()/unpause())."""
+        self._is_paused = False
+
     def now_seconds(self) -> float:
+        if self._is_paused:
+            return self._paused_at_seconds
         if not self.is_playing():
             return 0.0
         pos_ms = pygame.mixer.music.get_pos()
