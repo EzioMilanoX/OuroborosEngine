@@ -5,6 +5,8 @@
 """Materializa/desmaterializa entidades de sala conforme a proximidade de uma entidade-ancora."""
 from __future__ import annotations
 
+from typing import Callable, Optional
+
 import numpy as np
 
 from ouroboros.core.constants import INVALID_DENSE_ROW
@@ -58,6 +60,8 @@ class DungeonStreamingSystem(ISystem):
         deactivation_radius: float,
         transform_pool_name: str,
         anchor_entity: PackedEntityId,
+        on_room_activated: Optional[Callable[[np.void, PackedEntityId], None]] = None,
+        on_room_deactivated: Optional[Callable[[np.void, PackedEntityId], None]] = None,
     ) -> None:
         """Cria internamente a `ComponentPool(ROOM_INSTANCE_DTYPE,
         dense_capacity=len(layout.rooms), entity_capacity=len(layout.rooms))`
@@ -67,6 +71,23 @@ class DungeonStreamingSystem(ISystem):
         (histerese); o construtor nao valida isso em runtime (esqueleto),
         mas a violacao deve ser tratada como erro de configuracao pelo
         chamador.
+
+        `on_room_activated(room_row, packed_entity_id)` (opcional): chamado
+        logo apos `world.create_entity(...)`, recebendo a linha completa de
+        `layout.rooms` da sala (geometria: `grid_x`/`grid_y`/`width`/`height`/
+        `center_x`/`center_y`/`room_type`) e o `PackedEntityId` recem-criado --
+        e o unico jeito do chamador escrever os campos iniciais da entidade
+        (`ArchetypeLoader` ignora `"initial_values"` -- achado do M6), ja que
+        este sistema so conhece o NOME do arquetipo, nunca seus campos.
+        Reativar uma sala sempre cria uma entidade NOVA e vazia (nunca
+        reaproveita valores de uma materializacao anterior) -- o callback
+        precisa reescrever TUDO que a apresentacao precisa a cada ativacao,
+        nao so na primeira vez.
+
+        `on_room_deactivated(room_row, packed_entity_id)` (opcional): chamado
+        ANTES de `world.destroy_entity(...)`, simetrico ao de ativacao (ex.:
+        telemetria) -- nao e necessario pro caso de uso de sprite de fundo,
+        ja que o destroy sozinho ja libera os componentes.
         """
         self._layout = layout
         self._room_archetype_name = room_archetype_name
@@ -74,6 +95,8 @@ class DungeonStreamingSystem(ISystem):
         self._deactivation_radius = float(deactivation_radius)
         self._transform_pool_name = transform_pool_name
         self._anchor_entity = anchor_entity
+        self._on_room_activated = on_room_activated
+        self._on_room_deactivated = on_room_deactivated
 
         room_count = int(layout.rooms.shape[0])
         self._room_instances = ComponentPool(
@@ -117,11 +140,15 @@ class DungeonStreamingSystem(ISystem):
             packed_entity_id = world.create_entity(self._room_archetype_name)
             row = self._room_instances.attach(room_id_int)
             self._room_instances.active_view()[row] = (packed_entity_id,)
+            if self._on_room_activated is not None:
+                self._on_room_activated(self._layout.rooms[room_id_int], packed_entity_id)
 
         for room_id in np.flatnonzero(deactivate_mask):
             room_id_int = int(room_id)
             row = self._room_instances.dense_row_of(room_id_int)
             packed_entity_id = int(self._room_instances.active_view()[row]["world_entity_id"])
+            if self._on_room_deactivated is not None:
+                self._on_room_deactivated(self._layout.rooms[room_id_int], packed_entity_id)
             world.destroy_entity(packed_entity_id)
             self._room_instances.detach(room_id_int)
 

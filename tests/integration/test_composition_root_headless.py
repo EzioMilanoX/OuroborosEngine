@@ -11,6 +11,8 @@ import pytest
 from ouroboros.bootstrap.composition_root import CompositionRoot
 from ouroboros.bootstrap.engine_config import EngineConfig
 from ouroboros.bootstrap.game_loop import GameLoop
+from ouroboros.core.systems.collision_system import CollisionSystem
+from ouroboros.core.systems.spatial_grid import UniformGrid
 from ouroboros.core.world import World
 
 
@@ -31,6 +33,13 @@ def engine_config(tmp_path):
     )
 
 
+def _find_collision_system(game_loop) -> CollisionSystem:
+    for system in game_loop.world.systems:
+        if isinstance(system, CollisionSystem):
+            return system
+    raise AssertionError("CompositionRoot.build() deveria ter registrado um CollisionSystem")
+
+
 def test_composition_root_builds_a_working_game_loop(engine_config):
     root = CompositionRoot(engine_config)
     game_loop = root.build()
@@ -39,6 +48,31 @@ def test_composition_root_builds_a_working_game_loop(engine_config):
     assert isinstance(game_loop.world, World)
     assert game_loop.world.get_pool("transform") is not None
     assert game_loop.renderer.get_viewport_size() == (320, 240)
+
+    game_loop.renderer.shutdown()
+    if pygame.mixer.get_init():
+        pygame.mixer.quit()
+
+
+def test_composition_root_defaults_to_brute_force_collision_when_no_grid_is_given(engine_config):
+    """Regressao de retrocompatibilidade: omitir `spatial_grid` continua
+    dando o mesmo CollisionSystem forca-bruta de sempre."""
+    game_loop = CompositionRoot(engine_config).build()
+
+    assert _find_collision_system(game_loop)._spatial_grid is None
+
+    game_loop.renderer.shutdown()
+    if pygame.mixer.get_init():
+        pygame.mixer.quit()
+
+
+def test_composition_root_forwards_a_supplied_spatial_grid_to_collision_system(engine_config):
+    grid = UniformGrid(world_bounds=(0.0, 0.0, 100.0, 100.0), cell_size=10.0,
+                       entity_capacity=64, max_candidate_pairs=64)
+
+    game_loop = CompositionRoot(engine_config).build(spatial_grid=grid)
+
+    assert _find_collision_system(game_loop)._spatial_grid is grid
 
     game_loop.renderer.shutdown()
     if pygame.mixer.get_init():

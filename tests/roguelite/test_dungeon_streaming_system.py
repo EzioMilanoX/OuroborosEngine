@@ -137,3 +137,66 @@ def test_multiple_rooms_transition_independently(world: World) -> None:
     _set_anchor_position(world, anchor_packed, 600.0, 0.0)
     world.step(0.016)
     assert world.get_pool("sprite").count == 1
+
+
+def test_on_room_activated_receives_the_room_row_and_the_new_packed_entity_id(world: World) -> None:
+    anchor_packed = _make_world_with_anchor(world, start_x=0.0, start_y=0.0)
+    layout = _make_layout([(0.0, 0.0)])
+    calls = []
+    system = DungeonStreamingSystem(
+        layout, "room_instance", ACTIVATION_RADIUS, DEACTIVATION_RADIUS, "transform", anchor_packed,
+        on_room_activated=lambda room_row, packed_entity_id: calls.append((int(room_row["room_id"]), packed_entity_id)),
+    )
+    world.register_system(system)
+
+    world.step(0.016)
+
+    assert len(calls) == 1
+    room_id, packed_entity_id = calls[0]
+    assert room_id == 0
+    assert world.get_pool("sprite").is_attached(unpack_index(packed_entity_id))
+
+
+def test_on_room_deactivated_is_called_before_destroy_with_the_same_packed_entity_id(world: World) -> None:
+    anchor_packed = _make_world_with_anchor(world, start_x=0.0, start_y=0.0)
+    layout = _make_layout([(0.0, 0.0)])
+    activated = []
+    deactivated = []
+    system = DungeonStreamingSystem(
+        layout, "room_instance", ACTIVATION_RADIUS, DEACTIVATION_RADIUS, "transform", anchor_packed,
+        on_room_activated=lambda room_row, packed_entity_id: activated.append(packed_entity_id),
+        on_room_deactivated=lambda room_row, packed_entity_id: deactivated.append(packed_entity_id),
+    )
+    world.register_system(system)
+
+    world.step(0.016)
+    assert len(activated) == 1
+    assert deactivated == []
+
+    _set_anchor_position(world, anchor_packed, 150.0, 0.0)  # beyond deactivation_radius=100
+    world.step(0.016)
+
+    assert deactivated == [activated[0]]
+
+
+def test_on_room_activated_fires_again_on_reactivation_since_entities_are_never_reused(world: World) -> None:
+    """Reativar uma sala sempre cria uma entidade NOVA e vazia (world.create_entity
+    de novo, nunca reaproveita a antiga) -- o callback de ativacao precisa disparar
+    de novo a cada reativacao, nao so na primeira vez."""
+    anchor_packed = _make_world_with_anchor(world, start_x=0.0, start_y=0.0)
+    layout = _make_layout([(0.0, 0.0)])
+    calls = []
+    system = DungeonStreamingSystem(
+        layout, "room_instance", ACTIVATION_RADIUS, DEACTIVATION_RADIUS, "transform", anchor_packed,
+        on_room_activated=lambda room_row, packed_entity_id: calls.append(packed_entity_id),
+    )
+    world.register_system(system)
+
+    world.step(0.016)  # ativa
+    _set_anchor_position(world, anchor_packed, 150.0, 0.0)
+    world.step(0.016)  # desativa
+    _set_anchor_position(world, anchor_packed, 0.0, 0.0)
+    world.step(0.016)  # reativa
+
+    assert len(calls) == 2
+    assert calls[0] != calls[1]  # entidade nova, PackedEntityId diferente (indice reciclado ou nao)

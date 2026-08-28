@@ -1,6 +1,7 @@
 """Composicao do Jogo Roguelite: registra pools/arquetipos/sistemas especificos por cima do CompositionRoot generico."""
 from __future__ import annotations
 
+import dataclasses
 from pathlib import Path
 from typing import Tuple
 
@@ -13,11 +14,12 @@ from ouroboros.bootstrap.scene import GameplayScene
 from ouroboros.core.memory.handles import unpack_index
 from ouroboros.core.stable_id import stable_id_from_name
 from ouroboros.core.systems.collision_system import CollisionSystem
+from ouroboros.core.systems.spatial_grid import UniformGrid
 from ouroboros.core.world import World
 from ouroboros.interfaces.renderer import SHAPE_CIRCLE, SHAPE_RECT
 from ouroboros.roguelite.combat.schemas import EntityKind, HEALTH_DTYPE
 from ouroboros.roguelite.entities.archetype_loader import ArchetypeLoader
-from ouroboros.roguelite.generation.dungeon_generator import DungeonGenerator
+from ouroboros.roguelite.generation.dungeon_generator import DungeonGenerator, DungeonLayout
 from ouroboros.roguelite.generation.random import RandomStreamPurpose, StrictRandom
 from ouroboros.roguelite.items.inventory_pool import InventoryPool
 from ouroboros.roguelite.items.schemas import INVENTORY_SLOT_DTYPE
@@ -25,6 +27,7 @@ from ouroboros.roguelite.items.weapon_loader import WeaponLoader
 from ouroboros.roguelite.loaders.difficulty_loader import DifficultyLoader
 from ouroboros.roguelite.modifiers.modifier_stack import ModifierStack
 from ouroboros.roguelite.systems.damage_system import DamageOnCollisionSystem
+from ouroboros.roguelite.systems.dungeon_streaming_system import DungeonStreamingSystem
 from ouroboros.roguelite.systems.modifier_application_system import ModifierApplicationSystem
 
 from games.roguelite.end_scene import EndScene
@@ -65,6 +68,23 @@ DUNGEON_LEVEL_SEED = 1
 DUNGEON_MAX_ROOMS = 6
 DUNGEON_ROOM_SIZE_RANGE = (6, 10)
 
+# UniformGrid (ROADMAP M9.1): celula = 2 tiles, folga de 1 tile alem do tile
+# mais externo de verdade (cobre hitboxes que ultrapassam ligeiramente a
+# borda -- o bounds em si ja vem dos tiles reais, rooms+corredores, entao
+# nao precisa "adivinhar" o quao longe um corredor pode ir).
+GRID_CELL_SIZE = TILE_PIXELS * 2
+GRID_BOUNDS_MARGIN = TILE_PIXELS
+GRID_MAX_CANDIDATE_PAIRS = 4096
+
+# DungeonStreamingSystem (ROADMAP M9.2): a camera centraliza no jogador
+# (build_hud_callback) sobre um viewport de ate 800x600 (metade = 400px) --
+# ativa a sala assim que sua borda mais proxima PODERIA entrar em quadro
+# (raio ate o CENTRO da sala, entao soma a metade do maior lado possivel de
+# uma sala: 10 tiles/2 * TILE_PIXELS = 120px) mais uma folga; desativa bem
+# mais longe pra nao oscilar nas bordas (histerese).
+ROOM_ACTIVATION_RADIUS = 650.0
+ROOM_DEACTIVATION_RADIUS = 900.0
+
 _GAME_DIR = Path(__file__).resolve().parent
 _REPO_ROOT = _GAME_DIR.parent.parent
 DIFFICULTY_ID = "normal"
@@ -86,22 +106,65 @@ def _find_collision_system(world: World) -> CollisionSystem:
     raise RuntimeError("CompositionRoot.build() deveria ter registrado um CollisionSystem")
 
 
-def _spawn_room_backdrops(world: World, rooms: np.ndarray) -> None:
-    """Representacao visual ESTATICA (sempre presente, nunca destruida) de cada
-    sala: um retangulo grande posicionado/escalado a partir de `DungeonLayout.rooms`.
-    Sem geometria por tile nem colisao de parede -- limitacao de v1 documentada."""
+def _world_bounds_from_tiles(layout: DungeonLayout) -> Tuple[float, float, float, float]:
+    """Limites de verdade do dungeon gerado (salas + corredores), em pixels,
+    a partir dos tiles REAIS (nao so do retangulo de cada sala -- corredores
+    entre salas distantes podem se estender bem alem dele, ver
+    `DungeonGenerator._carve_corridor`). Cada tile e local a sua sala dona
+    (`tiles["room_id"]`); soma-se `rooms["grid_x"/"grid_y"]` da sala dona
+    pra obter a coordenada global antes de escalar por `TILE_PIXELS`."""
+    tiles = layout.tiles
+    rooms = layout.rooms
+    global_tile_x = rooms["grid_x"][tiles["room_id"]] + tiles["local_x"]
+    global_tile_y = rooms["grid_y"][tiles["room_id"]] + tiles["local_y"]
+    min_x = float(global_tile_x.min()) * TILE_PIXELS - GRID_BOUNDS_MARGIN
+    max_x = float(global_tile_x.max() + 1) * TILE_PIXELS + GRID_BOUNDS_MARGIN
+    min_y = float(global_tile_y.min()) * TILE_PIXELS - GRID_BOUNDS_MARGIN
+    max_y = float(global_tile_y.max() + 1) * TILE_PIXELS + GRID_BOUNDS_MARGIN
+    return (min_x, min_y, max_x, max_y)
+
+
+def _layout_with_pixel_space_centers(layout: DungeonLayout) -> DungeonLayout:
+    """`ROOM_DTYPE.center_x/center_y` sao gerados em unidades de TILE (o
+    gerador de masmorra nunca conhece pixels -- so este script de composicao
+    escala por `TILE_PIXELS`). `DungeonStreamingSystem` compara `center_x/y`
+    direto contra a posicao (em pixels) da entidade-ancora -- sem essa
+    conversao, a distancia calculada ficaria errada por um fator de
+    `TILE_PIXELS`. So os campos usados pelo streaming mudam; `_spawn_player`/
+    `_spawn_enemy` continuam lendo o `layout` ORIGINAL (em tiles) e fazendo
+    sua propria escala, como ja faziam."""
+    rooms_px = layout.rooms.copy()
+    rooms_px["center_x"] *= TILE_PIXELS
+    rooms_px["center_y"] *= TILE_PIXELS
+    return dataclasses.replace(layout, rooms=rooms_px)
+
+
+def _make_on_room_activated(world: World):
+    """Escreve os campos iniciais (`ArchetypeLoader` ignora `"initial_values"`
+    -- achado do M6) da entidade de fundo que acabou de materializar pra UMA
+    sala: mesmo retangulo grande de antes, so que agora por ativacao em vez
+    de uma vez so no boot.
+
+    `room_row` vem de `DungeonLayout.rooms` -- mas do layout JA ESCALADO
+    (`_layout_with_pixel_space_centers`) que e passado pro
+    `DungeonStreamingSystem`, entao `center_x`/`center_y` aqui JA estao em
+    pixels (nao multiplicar de novo por `TILE_PIXELS` -- faria a sala
+    aparecer 24x mais longe do que deveria). Só `width`/`height` continuam
+    em unidades de tile nessa mesma linha (o layout escalado so mexeu nos
+    centros, unico campo que o calculo de distancia do streaming le) --
+    esses dois SIM precisam da conversao aqui."""
     sprite_pool = world.get_pool("sprite")
     transform_pool = world.get_pool("transform")
-    for room in rooms:
-        packed_entity_id = world.create_entity(ROOM_BACKDROP_ARCHETYPE_NAME)
-        index = unpack_index(packed_entity_id)
 
-        width_px = float(room["width"]) * TILE_PIXELS
-        height_px = float(room["height"]) * TILE_PIXELS
+    def _on_room_activated(room_row: np.void, packed_entity_id: int) -> None:
+        index = unpack_index(packed_entity_id)
+        width_px = float(room_row["width"]) * TILE_PIXELS
+        height_px = float(room_row["height"]) * TILE_PIXELS
+
         t_row = transform_pool.dense_row_of(index)
         t_view = transform_pool.active_view()
-        t_view["position_x"][t_row] = float(room["center_x"]) * TILE_PIXELS
-        t_view["position_y"][t_row] = float(room["center_y"]) * TILE_PIXELS
+        t_view["position_x"][t_row] = float(room_row["center_x"])  # ja em pixels -- ver docstring
+        t_view["position_y"][t_row] = float(room_row["center_y"])  # ja em pixels -- ver docstring
         t_view["rotation_rad"][t_row] = 0.0
         t_view["scale_x"][t_row] = width_px / 8.0
         t_view["scale_y"][t_row] = height_px / 8.0
@@ -114,6 +177,8 @@ def _spawn_room_backdrops(world: World, rooms: np.ndarray) -> None:
         s_view["tint_b"][s_row] = 55
         s_view["tint_a"][s_row] = 255
         s_view["layer_z"][s_row] = 0
+
+    return _on_room_activated
 
 
 def _spawn_player(world: World, spawn_x: float, spawn_y: float) -> int:
@@ -222,13 +287,30 @@ def _spawn_enemy(world: World, spawn_x: float, spawn_y: float, hp: float, contac
 
 def build_game(config: EngineConfig) -> GameLoop:
     """
-    Monta o Jogo Roguelite completo: usa `CompositionRoot(config).build()`
-    para o `World` generico (Pilar 1/2), registra por cima as pools/
-    arquetipos/sistemas especificos deste jogo (Pilar 3 + HUD), gera a
-    masmorra, spawna jogador/inimigos, equipa a arma inicial, e retorna
-    um `GameLoop` pronto para `.run()`.
+    Monta o Jogo Roguelite completo: gera a masmorra PRIMEIRO (puro dado/RNG,
+    sem nenhuma dependencia de `World`/`MemoryManager` -- `DungeonGenerator`/
+    `StrictRandom` nao tocam ECS), monta um `UniformGrid` dimensionado pelos
+    limites reais dela, e SO ENTAO usa `CompositionRoot(config).build(
+    spatial_grid=...)` pra montar o `World` generico (Pilar 1/2) ja com
+    deteccao de colisao acelerada (ROADMAP M9.1 -- antes rodava forca-bruta
+    O(n^2), nada passava uma grade). Registra por cima as pools/arquetipos/
+    sistemas especificos deste jogo (Pilar 3 + HUD), spawna jogador/inimigos,
+    equipa a arma inicial, liga o streaming real de salas (ROADMAP M9.2 --
+    antes eram sprites estaticos sempre presentes), e retorna um `GameLoop`
+    pronto para `.run()`.
     """
-    game_loop = CompositionRoot(config).build()
+    strict_random = StrictRandom(root_seed=DUNGEON_ROOT_SEED)
+    layout = DungeonGenerator(
+        max_rooms=DUNGEON_MAX_ROOMS, room_size_range=DUNGEON_ROOM_SIZE_RANGE
+    ).generate(strict_random, level_seed=DUNGEON_LEVEL_SEED)
+
+    spatial_grid = UniformGrid(
+        world_bounds=_world_bounds_from_tiles(layout),
+        cell_size=GRID_CELL_SIZE,
+        entity_capacity=config.entity_capacity,
+        max_candidate_pairs=GRID_MAX_CANDIDATE_PAIRS,
+    )
+    game_loop = CompositionRoot(config).build(spatial_grid=spatial_grid)
     world = game_loop.world
 
     world.create_pool(HEALTH_POOL_NAME, HEALTH_DTYPE, dense_capacity=config.entity_capacity)
@@ -244,17 +326,27 @@ def build_game(config: EngineConfig) -> GameLoop:
 
     difficulty = DifficultyLoader(DIFFICULTIES_DIR).load(DIFFICULTY_ID)
 
-    strict_random = StrictRandom(root_seed=DUNGEON_ROOT_SEED)
-    layout = DungeonGenerator(
-        max_rooms=DUNGEON_MAX_ROOMS, room_size_range=DUNGEON_ROOM_SIZE_RANGE
-    ).generate(strict_random, level_seed=DUNGEON_LEVEL_SEED)
-    _spawn_room_backdrops(world, layout.rooms)
-
     spawn_room = layout.rooms[0]
     player_index = _spawn_player(
         world,
         spawn_x=float(spawn_room["center_x"]) * TILE_PIXELS,
         spawn_y=float(spawn_room["center_y"]) * TILE_PIXELS,
+    )
+
+    # Streaming real de salas (ROADMAP M9.2): a ancora e o jogador que acabou
+    # de nascer -- por isso so pode ser registrado DEPOIS de `_spawn_player`.
+    # A sala inicial ativa no proprio primeiro `world.step()` (distancia 0 do
+    # centro dela, dentro de ROOM_ACTIVATION_RADIUS), sem tratamento especial.
+    world.register_system(
+        DungeonStreamingSystem(
+            _layout_with_pixel_space_centers(layout),
+            ROOM_BACKDROP_ARCHETYPE_NAME,
+            ROOM_ACTIVATION_RADIUS,
+            ROOM_DEACTIVATION_RADIUS,
+            "transform",
+            world.pack_current(player_index),
+            on_room_activated=_make_on_room_activated(world),
+        )
     )
 
     enemy_health = 30.0 * float(difficulty["enemy_health_multiplier"])
