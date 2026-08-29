@@ -11,15 +11,20 @@ from ouroboros.bootstrap.composition_root import CompositionRoot
 from ouroboros.bootstrap.engine_config import EngineConfig
 from ouroboros.bootstrap.game_loop import GameLoop
 from ouroboros.bootstrap.scene import GameplayScene
+from ouroboros.bootstrap.screen_shake import ScreenShake, ScreenShakeUpdateSystem
+from ouroboros.bootstrap.texture_manifest_loader import load_texture_manifest
 from ouroboros.core.memory.handles import PackedEntityId, unpack_index
+from ouroboros.core.particle_storage import ParticleStorage
+from ouroboros.core.stable_id import stable_id_from_name
+from ouroboros.core.systems.particle_update_system import ParticleUpdateSystem
 from ouroboros.core.world import World
-from ouroboros.interfaces.renderer import SHAPE_CIRCLE
+from ouroboros.interfaces.renderer import SHAPE_RING
 from ouroboros.roguelite.entities.archetype_loader import ArchetypeLoader
 from ouroboros.rhythm.loaders.rhythm_difficulty_loader import RhythmDifficultyLoader
 from ouroboros.rhythm.loaders.song_catalog_loader import SongCatalogLoader, SongEntry
 from ouroboros.rhythm.runtime.approach_schedule import split_spawn_and_hit_schedules
 from ouroboros.rhythm.runtime.beatmap_loader import BeatmapLoader
-from ouroboros.rhythm.runtime.judgment_system import JudgmentSystem
+from ouroboros.rhythm.runtime.judgment_system import Judgment, JudgmentSystem
 from ouroboros.rhythm.runtime.note_scroll_system import NoteScrollSystem
 from ouroboros.rhythm.runtime.rhythm_spawner_system import RhythmSpawnerSystem
 from ouroboros.rhythm.runtime.schemas import NOTE_STATE_DTYPE
@@ -66,6 +71,40 @@ SFX_IDS_BY_JUDGMENT = ("judgment_perfect", "judgment_good", "judgment_miss")
 # evita esse conflito sem acoplar nada entre os dois produtos.
 RHYTHM_ARCHETYPES_DIR = _REPO_ROOT / "data" / "archetypes" / "rhythm"
 
+# Textura real de nota (ROADMAP M11.3) -- ver games/rhythm_game/tools/generate_note_texture.py.
+TEXTURES_DIR = _GAME_DIR / "assets" / "textures"
+TEXTURE_MANIFEST_PATH = TEXTURES_DIR / "manifest.json"
+NOTE_TEXTURE_NAME = "note"
+NOTE_TEXTURE_ID = stable_id_from_name(NOTE_TEXTURE_NAME)
+
+# ROADMAP M11.4: layer=1 ("vocal", ver DEFAULT_LAYER_NAME_TO_ID em BeatmapLoader) desenha
+# como SHAPE_RING (forma distinta) em vez da textura real -- layer=0 ("kick"/legado "")
+# continua usando NOTE_TEXTURE_ID. Cada camada tambem tem sua propria cor de particula
+# ao acertar (ver _make_on_judgment).
+LAYER_VOCAL = 1
+LAYER_PARTICLE_TINTS = {
+    0: (255, 190, 90, 255),   # "kick" -- laranja quente
+    LAYER_VOCAL: (120, 220, 255, 255),  # "vocal" -- ciano
+}
+
+# Particula na batida acertada (ROADMAP M11.3): burst pequeno na posicao da lane
+# acertada, cor por camada (ver LAYER_PARTICLE_TINTS). Contagem pre-alocada (Zero-GC
+# durante o burst em si -- ver _make_on_judgment); so os angulos/velocidades aleatorios
+# de cada burst alocam um array numpy pequeno por chamada (mesma excecao honesta ja
+# documentada em JudgmentSystem.__init__ para NullAudioEngine.play_one_shot).
+HIT_PARTICLE_CAPACITY = 256
+HIT_PARTICLE_COUNT_PER_BURST = 12
+HIT_PARTICLE_TTL_SECONDS = 0.35
+HIT_PARTICLE_SPEED_RANGE = (40.0, 140.0)
+HIT_PARTICLE_SIZE = 4.0
+
+# Screen shake no erro (ROADMAP M11.3): mesmo idioma aditivo/com teto documentado e
+# testado em ScreenShake (ver tests/integration/test_screen_shake.py) -- varios erros
+# proximos no tempo somam amplitude ate o teto, nunca substituem por um shake mais fraco.
+MISS_SHAKE_INTENSITY = 6.0
+MISS_SHAKE_CAP = 14.0
+MISS_SHAKE_DURATION_SECONDS = 0.18
+
 
 def _lane_x_positions(window_width: int) -> Tuple[float, ...]:
     """4 posicoes X igualmente espacadas, centralizadas na largura da janela."""
@@ -85,7 +124,7 @@ def _make_on_note_spawned():
     def on_note_spawned(
         world: World, packed_entity_id: PackedEntityId, lane: int, threat_type: int, layer: int
     ) -> None:
-        del threat_type, layer
+        del threat_type
         index = unpack_index(packed_entity_id)
         sprite_pool = world.get_pool("sprite")
         transform_pool = world.get_pool("transform")
@@ -94,7 +133,9 @@ def _make_on_note_spawned():
 
         tint = LANE_TINTS[lane % len(LANE_TINTS)]
         sprite_view = sprite_pool.active_view()
-        sprite_view["texture_id"][sprite_row] = SHAPE_CIRCLE
+        # ROADMAP M11.4: layer distingue a FORMA (nao so a cor por lane ja existente)
+        # -- "vocal" desenha como aro (SHAPE_RING), "kick"/legado usa a textura real.
+        sprite_view["texture_id"][sprite_row] = SHAPE_RING if layer == LAYER_VOCAL else NOTE_TEXTURE_ID
         sprite_view["tint_r"][sprite_row] = tint[0]
         sprite_view["tint_g"][sprite_row] = tint[1]
         sprite_view["tint_b"][sprite_row] = tint[2]
@@ -106,6 +147,50 @@ def _make_on_note_spawned():
         transform_view["scale_y"][transform_row] = NOTE_SCALE
 
     return on_note_spawned
+
+
+def _make_on_judgment(
+    particle_storage: ParticleStorage,
+    screen_shake: ScreenShake,
+    lane_x_positions: Sequence[float],
+    judgment_line_y: float,
+):
+    """Callback passado a `JudgmentSystem` (ROADMAP M11.3/M11.4): emite um
+    burst de particulas (cor por `layer`, posicao na lane acertada) em
+    Perfeito/Bom, e acumula screen shake em Erro. Arrays de posicao/
+    velocidade/ttl/tamanho/tint sao PRE-ALOCADOS uma unica vez aqui
+    (Zero-GC no burst em si) -- so os angulos/velocidades aleatorios de
+    cada burst alocam um array numpy novo por chamada (`rng.uniform` nao
+    aceita escrever num array existente); mesma excecao honesta ja
+    documentada em `JudgmentSystem.__init__` para `play_one_shot`.
+    """
+    position_x = np.zeros(HIT_PARTICLE_COUNT_PER_BURST, dtype=np.float32)
+    position_y = np.zeros(HIT_PARTICLE_COUNT_PER_BURST, dtype=np.float32)
+    velocity_x = np.zeros(HIT_PARTICLE_COUNT_PER_BURST, dtype=np.float32)
+    velocity_y = np.zeros(HIT_PARTICLE_COUNT_PER_BURST, dtype=np.float32)
+    ttl_seconds = np.full(HIT_PARTICLE_COUNT_PER_BURST, HIT_PARTICLE_TTL_SECONDS, dtype=np.float32)
+    size = np.full(HIT_PARTICLE_COUNT_PER_BURST, HIT_PARTICLE_SIZE, dtype=np.float32)
+    tint_rgba = np.zeros((HIT_PARTICLE_COUNT_PER_BURST, 4), dtype=np.uint8)
+    rng = np.random.default_rng()  # juice de apresentacao -- nao precisa de determinismo (mesmo criterio de ScreenShake)
+
+    def on_judgment(judgment: Judgment, layer: int, lane_index: int) -> None:
+        if judgment == Judgment.MISS:
+            new_total = min(screen_shake.current_magnitude() + MISS_SHAKE_INTENSITY, MISS_SHAKE_CAP)
+            screen_shake.trigger(new_total, MISS_SHAKE_DURATION_SECONDS)
+            return
+        if lane_index < 0:
+            return  # sentinela de _auto_miss_expired -- nao deveria disparar aqui, mas defensivo
+
+        angles = rng.uniform(0.0, 2.0 * np.pi, size=HIT_PARTICLE_COUNT_PER_BURST)
+        speeds = rng.uniform(HIT_PARTICLE_SPEED_RANGE[0], HIT_PARTICLE_SPEED_RANGE[1], size=HIT_PARTICLE_COUNT_PER_BURST)
+        position_x[:] = lane_x_positions[lane_index]
+        position_y[:] = judgment_line_y
+        velocity_x[:] = np.cos(angles) * speeds
+        velocity_y[:] = np.sin(angles) * speeds
+        tint_rgba[:, :] = LAYER_PARTICLE_TINTS.get(layer, LAYER_PARTICLE_TINTS[0])
+        particle_storage.emit_burst(position_x, position_y, velocity_x, velocity_y, ttl_seconds, size, tint_rgba)
+
+    return on_judgment
 
 
 def _start_song(
@@ -149,6 +234,14 @@ def _start_song(
     audio_clock = game_loop.audio_engine.get_clock()
     audio_clock.calibrate_latency(difficulty["output_latency_seconds"])
 
+    # ParticleStorage/ScreenShake sao estado POR-PARTIDA (ao contrario do banco de
+    # SFX/texturas, carregados uma unica vez em build_menu_game) -- precisam
+    # congelar junto do resto do World enquanto PauseScene estiver no topo, entao
+    # cada um ganha um ISystem novo registrado NESTE World (nao sao reusados de
+    # uma partida pra outra).
+    particle_storage = ParticleStorage(capacity=HIT_PARTICLE_CAPACITY)
+    screen_shake = ScreenShake()
+
     spawner = RhythmSpawnerSystem(
         audio_clock=audio_clock,
         scheduled_threats=spawn_threats,
@@ -181,11 +274,14 @@ def _start_song(
         points_by_judgment=(difficulty["points_perfect"], difficulty["points_good"], difficulty["points_miss"]),
         audio_engine=game_loop.audio_engine,
         sfx_ids_by_judgment=SFX_IDS_BY_JUDGMENT,
+        on_judgment=_make_on_judgment(particle_storage, screen_shake, lane_x_positions, judgment_line_y),
     )
 
     world.register_system(spawner)
     world.register_system(scroll)
     world.register_system(judgment)
+    world.register_system(ParticleUpdateSystem(particle_storage))
+    world.register_system(ScreenShakeUpdateSystem(screen_shake, game_loop.renderer))
     world.register_system(QuitOnActionSystem(game_loop.input_provider, on_quit_action=on_return_to_menu))
 
     # `gameplay_scene` e construida UMA VEZ aqui e reusada tanto pela PauseScene
@@ -218,6 +314,7 @@ def _start_song(
             viewport_size=(config.window_width, config.window_height),
             judgment_line_y=judgment_line_y,
             lane_x_positions=lane_x_positions,
+            particle_storage=particle_storage,
         )
     )
 
@@ -268,12 +365,12 @@ def build_menu_game(config: EngineConfig) -> GameLoop:
     `CompositionRoot(config).build()` da um `World` placeholder generico +
     os backends reais (construidos UMA VEZ, sobrevivem a qualquer musica
     escolhida depois via `replace_world`); carrega o banco de SFX de
-    julgamento e o catalogo de musicas/dificuldades reais UMA VEZ aqui
-    (recursos de vida-de-processo, ao contrario de `ParticleStorage`/
-    `ScreenShake`, que sao por-partida); e substitui a pilha de cenas por
-    um `MenuScene` ANTES do primeiro frame, entao a `GameplayScene` base
-    (sobre o `World` placeholder vazio) nunca chega a rodar `world.step()`
-    nem uma vez.
+    julgamento, a textura real de nota (ROADMAP M11.3), e o catalogo de
+    musicas/dificuldades reais UMA VEZ aqui (recursos de vida-de-processo,
+    ao contrario de `ParticleStorage`/`ScreenShake`, que sao por-partida);
+    e substitui a pilha de cenas por um `MenuScene` ANTES do primeiro
+    frame, entao a `GameplayScene` base (sobre o `World` placeholder
+    vazio) nunca chega a rodar `world.step()` nem uma vez.
     """
     game_loop = CompositionRoot(config).build()
 
@@ -286,6 +383,15 @@ def build_menu_game(config: EngineConfig) -> GameLoop:
     if missing_sfx_ids:
         raise AudioBankDefinitionError(
             f"SFX_IDS_BY_JUDGMENT referencia id(s) ausentes em {RHYTHM_JUDGMENT_AUDIO_PATH}: {missing_sfx_ids}"
+        )
+
+    # Mesmo criterio: valida a entrada obrigatoria do manifesto de texturas ANTES
+    # de expor o menu, nao no meio de uma partida quando uma nota tentar desenhar
+    # um texture_id nunca carregado.
+    loaded_texture_names = load_texture_manifest(game_loop.renderer, str(TEXTURE_MANIFEST_PATH), TEXTURES_DIR)
+    if NOTE_TEXTURE_NAME not in loaded_texture_names:
+        raise ValueError(
+            f"manifesto de texturas {TEXTURE_MANIFEST_PATH} sem a entrada obrigatoria '{NOTE_TEXTURE_NAME}'"
         )
 
     songs = SongCatalogLoader(SONGS_DIR, repo_root=_REPO_ROOT).load_all()

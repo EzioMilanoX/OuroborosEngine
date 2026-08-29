@@ -22,6 +22,7 @@ from ouroboros.bootstrap.scene import GameplayScene
 from games.rhythm_game import composition
 from games.rhythm_game.composition import (
     LANE_POOL_NAME,
+    MISS_SHAKE_INTENSITY,
     NOTE_STATE_POOL_NAME,
     THREAT_TYPE_POOL_NAME,
     build_game,
@@ -56,6 +57,55 @@ def test_build_game_loads_the_judgment_sfx_bank(game_loop: GameLoop):
     sounds = game_loop.audio_engine._sounds
     for sfx_id in composition.SFX_IDS_BY_JUDGMENT:
         assert sfx_id in sounds
+
+
+def test_build_menu_game_raises_early_when_the_note_texture_is_missing_from_the_manifest(
+    config: EngineConfig, monkeypatch
+):
+    """Mesmo criterio do teste de SFX abaixo: um manifesto de texturas sem a
+    entrada obrigatoria deve falhar na COMPOSICAO, nunca dentro do loop de
+    gameplay quando uma nota tentar desenhar um texture_id nunca carregado."""
+    monkeypatch.setattr(composition, "NOTE_TEXTURE_NAME", "nonexistent_texture_name")
+
+    try:
+        with pytest.raises(ValueError):
+            build_menu_game(config)
+    finally:
+        pygame.display.quit()
+        if pygame.mixer.get_init():
+            pygame.mixer.quit()
+
+
+def test_missed_notes_trigger_real_screen_shake_via_the_running_game(game_loop: GameLoop, bind_quit_after):
+    """Prova de ponta a ponta (nao so o teste sintetico de _make_on_judgment):
+    sem nenhuma tecla pressionada, a primeira nota real acaba auto-errando
+    (JudgmentSystem._auto_miss_expired) e isso deve disparar screen shake de
+    verdade no ScreenShakeUpdateSystem registrado por _start_song.
+
+    Espiona ScreenShake.trigger() em vez de checar current_magnitude() APOS
+    o run() inteiro: a duracao do shake (MISS_SHAKE_DURATION_SECONDS) e curta
+    o bastante pra ja ter decaido de volta a 0.0 antes do teste conseguir
+    checar, dependendo de QUANDO dentro da janela de frames o auto-erro
+    acontece -- checar a CHAMADA em si, nao o estado residual, e robusto a
+    isso."""
+    screen_shake = next(
+        s._screen_shake for s in game_loop.world.systems if type(s).__name__ == "ScreenShakeUpdateSystem"
+    )
+    trigger_calls = []
+    original_trigger = screen_shake.trigger
+
+    def spy_trigger(intensity: float, duration_seconds: float) -> None:
+        trigger_calls.append((intensity, duration_seconds))
+        original_trigger(intensity, duration_seconds)
+
+    screen_shake.trigger = spy_trigger
+
+    bind_quit_after(game_loop.input_provider, quit_after=140)  # ~2.3s a 60fps -- alem de approach+miss window
+
+    game_loop.run()
+
+    assert len(trigger_calls) > 0
+    assert trigger_calls[0][0] == pytest.approx(MISS_SHAKE_INTENSITY)
 
 
 def test_build_game_raises_early_when_sfx_id_is_missing_from_the_bank(config: EngineConfig, monkeypatch):
