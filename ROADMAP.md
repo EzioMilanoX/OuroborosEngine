@@ -45,17 +45,20 @@ verde) e pushados — ver histórico de commits pra detalhes de cada um.
 
 ---
 
-## Fase 2 — consolidação, infraestrutura e profundidade (M7–M11)
+## Fase 2 — consolidação, infraestrutura e profundidade (M7–M11): concluída
 
 Auditoria do estado real do código (5 agentes de exploração, um por
 produto/camada) mostrou que a Fase 1 deixou capacidade construída-mas-nunca-
 usada (`UniformGrid`, `DungeonStreamingSystem`, um placeholder de backend
 Godot vazio), zero CI, um README desatualizado, e um produto irmão
 (BulletHell) preso a um wheel da engine anterior a toda a Fase 1. Esta fase
-ataca essa dívida antes de aprofundar os dois produtos que moram neste repo.
+atacou essa dívida antes de aprofundar os dois produtos que moram neste repo.
 
-Cada marco segue o mesmo ciclo já usado em M1–M6: pesquisa → design → crítica
-→ implementação → testes → `lint-imports` → smoke → reportar.
+Cada marco seguiu o mesmo ciclo já usado em M1–M6: pesquisa → design → crítica
+→ implementação → testes → `lint-imports` → smoke → reportar. Todos os 5
+marcos (M7–M11) foram implementados, testados (373 testes, `lint-imports`
+verde) e pushados — ver histórico de commits e as seções abaixo pra detalhes
+de cada um.
 
 ### M7 — Infraestrutura de verificação `[rápido, desbloqueia confiança]`
 
@@ -194,16 +197,67 @@ Fora de escopo (deferido): sistema de loot/pickups e, com ele,
 `RandomStreamPurpose.LOOT_TABLE`/`loot_rarity_bias` — fica pra quando loot for
 um marco próprio.
 
-### M11 — Jogo Musical: profundidade real
+### M11 — Jogo Musical: profundidade real — concluído
 
-1. `MenuScene` de seleção de música/dificuldade via `SceneStack`.
-2. Um segundo beatmap real e válido (consertar `example_track.beatmap.json`
-   pro schema v1 + áudio de verdade, ou gerar um novo via o pipeline de
-   extração por IA).
-3. Adotar M3 no feedback de acerto: textura real em vez de `SHAPE_CIRCLE`,
-   partícula na batida acertada, screen shake no miss.
-4. Fazer a tag `"layer"` (perfil `hybrid`) influenciar algo visível (cor/
-   textura distinta por camada, ou SFX distinto).
+1. **`MenuScene` real via `SceneStack`** (`games/rhythm_game/menu_scene.py`):
+   lista o produto cartesiano `(música, dificuldade)` dos catálogos reais
+   (`SongCatalogLoader`/`RhythmDifficultyLoader`, novos em
+   `ouroboros/rhythm/loaders/`, mesmo desenho de
+   `ouroboros/roguelite/loaders/`), navegável por `move_up`/`move_down`/
+   `confirm` (3 bindings novos). Motivou uma extração pequena na engine
+   (`CompositionRoot.build_world()`, Pilar 1 sem backends — `build()` só
+   passou a chamá-lo): o Jogo Musical virou o segundo produto (depois do
+   BulletHell, M8c) a precisar de "um `World` novo por partida" via
+   `GameLoop.replace_world`. `QuitOnActionSystem` trocou `game_loop` por um
+   callback `on_quit_action` — 'quit' durante uma partida agora volta pro
+   menu (para a música, limpa HUD/câmera residual) em vez de encerrar o
+   processo; só o `MenuScene` em si chama `game_loop.stop()`. `build_game()`
+   virou um atalho de conveniência (mesmo espírito do `--play` do
+   BulletHell): monta o menu e confirma a linha 0 direto, sem simular
+   tecla — por isso a suite de testes inteira que já existia (só usava
+   `build_game`) continuou passando sem nenhuma mudança. Achado real da
+   crítica: `PauseScene` precisa da MESMA instância de `GameplayScene` que
+   `reset_scenes` usa, nunca `game_loop.current_scene` (que na hora de
+   montar uma partida é o `MenuScene` ou a cena da partida anterior).
+2. **Segunda música real** (`second_track`, `games/rhythm_game/tools/
+   generate_second_track.py`): sintetiza um WAV com kick grave + um "blip"
+   tonal agudo no contratempo e roda o CLI offline real com
+   `--profile hybrid` — resultado real inspecionado: 120 ameaças, 58
+   "kick" + 62 "vocal" (diversidade de camada de verdade, ao contrário de
+   `demo_track`, extração legada com `layer=""` em toda nota). Serve tanto
+   de segunda música jogável quanto de dado real pro item 4.
+   `data/beatmaps/example_track.beatmap.json` (órfão, schema pré-v1
+   quebrado, áudio referenciado que nunca existiu) removido — superado por
+   `second_track`, não "consertado" (o ROADMAP oferecia as duas opções).
+3. **M3 adotado no feedback de acerto** — primeira vez que ParticleStorage/
+   ScreenShake/textura real são usados neste repo (nem o Roguelite tinha
+   adotado): textura real de nota (`generate_note_texture.py` — disco
+   branco com falloff de alpha, RGB quase-branco de propósito pro tint
+   por-nota continuar exato via `BLEND_RGBA_MULT`) substitui `SHAPE_CIRCLE`;
+   `ParticleStorage`/`ScreenShake` são construídos POR PARTIDA (congelam
+   com o resto do `World` durante a pausa); motivou um `ScreenShakeUpdateSystem`
+   novo na engine (mesmo idioma de `ParticleUpdateSystem`, que já existia).
+   Achado real da crítica: `load_texture_manifest` não tinha guarda contra
+   um `texture_id` colidir com o intervalo reservado às formas primitivas
+   (`SHAPE_RECT`/`CIRCLE`/`RING`) — corrigido antes de qualquer produto ter
+   carregado uma textura de verdade pela primeira vez.
+4. **`"layer"` influencia algo visível**: `NOTE_STATE_DTYPE` ganhou o campo
+   `layer` (copiado do agendamento no spawn); `JudgmentSystem` ganhou
+   `on_judgment` (opcional), disparado com `(judgment, layer, lane_index)`.
+   "vocal" desenha como `SHAPE_RING` em vez da textura real, e cada camada
+   tem sua própria cor de partícula ao acertar — provado tanto por teste
+   de unidade quanto contra o `second_track` real. Achado real da crítica:
+   o callback original só carregava `judgment`, sem posição pra nascer o
+   burst — corrigido acrescentando `lane_index` (sempre disponível em
+   `_judge_presses`, nunca em `_auto_miss_expired`, que é só-Erro).
+
+Verificado: suite completa (373 testes, incluindo `test_menu_scene.py`,
+`test_rhythm_juice_wiring.py`, `test_song_catalog_loader.py`,
+`test_rhythm_difficulty_loader.py` novos) + `lint-imports` (3 kept, 0
+broken) + verificação manual headless de ponta a ponta (menu → escolher
+`second_track` → notas com textura/forma corretas por camada → burst de
+partícula/screen shake reais ao julgar → ESC volta pro menu → música
+anterior parada).
 
 ## Ordem e dependências
 
@@ -215,7 +269,7 @@ M8a/M8b/M8c (release da engine + adoção completa no BulletHell -- concluído)
 M9 (UniformGrid + DungeonStreamingSystem real + limpeza do godot_backend -- concluído)
   │
   ├──► M10 (Roguelite: salas/arma/dificuldade -- concluído)
-  └──► M11 (Jogo Musical: menu/beatmap/juice) -- pode rodar em paralelo ao M10
+  └──► M11 (Jogo Musical: menu/beatmap/juice -- concluído)
 ```
 
 M7 primeiro por ser rápido. M8 em seguida por ser o item de maior
@@ -223,8 +277,8 @@ alavancagem (nada da Fase 1 chega no BulletHell sem ele) mas também o de
 maior escopo/risco (dois repositórios) — os 3 sub-marcos (release, trocas
 cirúrgicas, SceneStack) todos concluídos. M9 antes de M10 porque a
 renderização de salas do M10.1 dependia de onde o streaming real (M9.2)
-deixasse o código. M11 não depende de nada além do que já existe hoje —
-único item restante desta fase.
+deixasse o código. M11 não dependia de nada além do que já existia —
+último item da fase, agora também concluído.
 
 ## Fora de escopo desta fase inteira
 

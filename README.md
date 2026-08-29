@@ -10,9 +10,12 @@ Musical— e teve seu nucleo ECS provado por um terceiro, o port do BulletHell
   perseguem o jogador, arma inicial com cooldown, dano por colisao,
   camera seguindo o jogador. Rodar com `python -m games.roguelite.main`.
 - **Jogo Musical** (`games/rhythm_game/`) — pipeline offline de IA (`librosa`)
-  que extrai BPM/onsets de um audio e gera um `beatmap.json` estatico,
-  consumido em runtime por um `RhythmSpawnerSystem` sincronizado a um
-  `IAudioClock` (nunca a delta-time); 4 lanes, julgamento de notas com SFX,
+  que extrai BPM/onsets de um audio e gera um `beatmap.json` estatico
+  (inclusive multi-camada via Perfis de Extracao, tag `"layer"`), consumido
+  em runtime por um `RhythmSpawnerSystem` sincronizado a um `IAudioClock`
+  (nunca a delta-time); menu real de selecao de musica/dificuldade
+  (`MenuScene`, catalogo com 2 musicas), 4 lanes, julgamento de notas com
+  SFX + particula no acerto + screen shake no erro, textura real de nota,
   pausa real. Rodar com `python -m games.rhythm_game.main`.
 
 ## A Constituicao da Engine
@@ -42,17 +45,19 @@ Musical— e teve seu nucleo ECS provado por um terceiro, o port do BulletHell
 
 A Fase 1 do roadmap (M1-M6) esta concluida: apresentacao 2.0 (formas/alpha/
 fx), texto e `SceneStack`, texturas e particulas, audio data-driven,
-ergonomia do nucleo, e os dois vertical slices acima. Da Fase 2 (M7-M11),
-tambem concluidos: CI real + este README (M7); release da engine + adocao
+ergonomia do nucleo, e os dois vertical slices acima. A Fase 2 (M7-M11)
+tambem esta concluida: CI real + este README (M7); release da engine + adocao
 completa no BulletHell -- SceneStack, particulas, screen shake, audio banks,
 fullscreen (M8, cross-repo); `UniformGrid`/`DungeonStreamingSystem` postos
 pra funcionar de verdade + limpeza do placeholder vazio de um backend Godot
 (M9); Roguelite ganhou profundidade real -- tipos de sala data-driven
 (`data/room_types.json`), uma segunda arma exercitando modificadores
 (`submachine_gun.json`), `spawn_rate_multiplier` de verdade influenciando a
-contagem de inimigos por sala (M10). Falta M11 (Jogo Musical: menu, segundo
-beatmap, particulas/textura no acerto) -- detalhes completos em
-`ROADMAP.md`.
+contagem de inimigos por sala (M10); Jogo Musical ganhou um `MenuScene` real
+de selecao de musica/dificuldade, uma segunda musica gerada pelo pipeline de
+IA (`--profile hybrid`, com diversidade real de `"layer"`), e adotou
+particulas/screen shake/textura real no feedback de acerto (M11). Nenhum
+item planejado restante -- detalhes completos em `ROADMAP.md`.
 
 ## Rodando localmente
 
