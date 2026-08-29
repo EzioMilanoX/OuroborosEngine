@@ -12,6 +12,7 @@ import pytest
 
 from ouroboros.bootstrap.texture_manifest_loader import load_texture_manifest
 from ouroboros.core.stable_id import stable_id_from_name
+from ouroboros.interfaces.renderer import SHAPE_MAX
 
 
 def _write_manifest(tmp_path, data: dict) -> str:
@@ -45,6 +46,23 @@ def test_colliding_names_raise_before_registering_anything(tmp_path, null_render
     import ouroboros.bootstrap.texture_manifest_loader as loader_module
 
     monkeypatch.setattr(loader_module, "stable_id_from_name", lambda name: 42)
+    manifest_path = _write_manifest(tmp_path, {"player": "player.png", "enemy": "enemy.png"})
+
+    with pytest.raises(ValueError):
+        load_texture_manifest(null_renderer, manifest_path, textures_root=Path(tmp_path))
+
+    assert null_renderer._loaded_textures == {}
+
+
+def test_texture_id_colliding_with_a_reserved_primitive_shape_id_raises_before_registering_anything(
+    tmp_path, null_renderer, monkeypatch
+):
+    """PygameRenderer._draw_shape consulta a tabela de texturas carregadas ANTES do
+    fallback pra SHAPE_RECT/CIRCLE/RING (0/1/2) -- uma colisao sequestraria
+    silenciosamente o desenho de uma forma primitiva em QUALQUER produto."""
+    import ouroboros.bootstrap.texture_manifest_loader as loader_module
+
+    monkeypatch.setattr(loader_module, "stable_id_from_name", lambda name: SHAPE_MAX - 1)
     manifest_path = _write_manifest(tmp_path, {"player": "player.png", "enemy": "enemy.png"})
 
     with pytest.raises(ValueError):

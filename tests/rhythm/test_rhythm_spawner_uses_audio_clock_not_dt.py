@@ -311,8 +311,8 @@ def test_on_note_spawned_callback_receives_world_packed_id_lane_and_threat_type(
 
     calls = []
 
-    def on_note_spawned(callback_world, packed_entity_id, lane, threat_type):
-        calls.append((callback_world, packed_entity_id, lane, threat_type))
+    def on_note_spawned(callback_world, packed_entity_id, lane, threat_type, layer):
+        calls.append((callback_world, packed_entity_id, lane, threat_type, layer))
 
     scheduled_threats = _build_scheduled_threats()
     system = RhythmSpawnerSystem(
@@ -328,14 +328,15 @@ def test_on_note_spawned_callback_receives_world_packed_id_lane_and_threat_type(
     system.update(world, delta_time=0.016)
 
     assert len(calls) == 1
-    callback_world, packed_entity_id, lane, threat_type = calls[0]
+    callback_world, packed_entity_id, lane, threat_type, layer = calls[0]
     assert callback_world is world
     assert world.is_alive(packed_entity_id)
     assert lane == 0
     assert threat_type == 0
+    assert layer == 0  # _build_scheduled_threats nao seta "layer" -- zero-init do dtype
 
     null_audio_clock.set_now_seconds(2.6)  # dispara evento 1: lane=1, threat_type=1
     system.update(world, delta_time=0.016)
 
     assert len(calls) == 2
-    assert calls[1][2:] == (1, 1)
+    assert calls[1][2:] == (1, 1, 0)

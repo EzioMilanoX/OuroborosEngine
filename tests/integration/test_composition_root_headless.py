@@ -79,6 +79,40 @@ def test_composition_root_forwards_a_supplied_spatial_grid_to_collision_system(e
         pygame.mixer.quit()
 
 
+def test_build_world_registers_core_systems_without_touching_any_backend(engine_config):
+    """ROADMAP M11: build_world() e o pedaco Pilar 1 de build(), extraido pra
+    um produto que precisa montar mais de um World ao longo do processo
+    (ex.: um menu antes da primeira partida) sem reconstruir renderer/input/
+    audio. Nenhum backend deve ser tocado -- sem isso, pygame.display seria
+    inicializado duas vezes por processo em qualquer teste que chame
+    build_world() mais de uma vez."""
+    world = CompositionRoot(engine_config).build_world()
+
+    assert isinstance(world, World)
+    assert world.get_pool("transform") is not None
+    assert _find_collision_system_in_world(world)._spatial_grid is None
+
+
+def test_build_uses_build_world_internally_same_behavior_as_before(engine_config):
+    """Regressao: build() continua devolvendo um GameLoop 100% equivalente
+    ao de antes da extracao de build_world()."""
+    game_loop = CompositionRoot(engine_config).build()
+
+    assert isinstance(game_loop.world, World)
+    assert game_loop.world.get_pool("transform") is not None
+
+    game_loop.renderer.shutdown()
+    if pygame.mixer.get_init():
+        pygame.mixer.quit()
+
+
+def _find_collision_system_in_world(world: World) -> CollisionSystem:
+    for system in world.systems:
+        if isinstance(system, CollisionSystem):
+            return system
+    raise AssertionError("build_world() deveria ter registrado um CollisionSystem")
+
+
 def test_engine_config_from_json_round_trips(tmp_path):
     config_path = tmp_path / "config.json"
     config_path.write_text(

@@ -42,7 +42,7 @@ def _register_note_archetype(memory_manager, world):
     world.register_archetype(ARCHETYPE_NAME, (LANE_POOL_NAME, NOTE_STATE_POOL_NAME))
 
 
-def _spawn_note(world, lane: int, timestamp_seconds: float):
+def _spawn_note(world, lane: int, timestamp_seconds: float, layer: int = 0):
     packed = world.create_entity(ARCHETYPE_NAME)
     index = unpack_index(packed)
     lane_pool = world.get_pool(LANE_POOL_NAME)
@@ -51,6 +51,7 @@ def _spawn_note(world, lane: int, timestamp_seconds: float):
     row = note_state_pool.dense_row_of(index)
     note_state_pool.active_view()["timestamp_seconds"][row] = timestamp_seconds
     note_state_pool.active_view()["packed_entity_id"][row] = packed
+    note_state_pool.active_view()["layer"][row] = layer
     return packed
 
 
@@ -364,6 +365,72 @@ def test_sfx_ids_by_judgment_with_wrong_length_raises_at_construction(null_audio
             audio_engine=null_audio_engine,
             sfx_ids_by_judgment=("only_two", "elements"),
         )
+
+
+def test_on_judgment_receives_layer_and_lane_index_for_a_pressed_hit(
+    memory_manager, world, null_audio_clock, null_input_provider
+):
+    _register_note_archetype(memory_manager, world)
+    _spawn_note(world, lane=2, timestamp_seconds=1.0, layer=1)
+    calls = []
+    system = JudgmentSystem(
+        audio_clock=null_audio_clock,
+        input_provider=null_input_provider,
+        note_state_pool_name=NOTE_STATE_POOL_NAME,
+        lane_pool_name=LANE_POOL_NAME,
+        lane_action_names=LANE_ACTIONS,
+        entity_capacity=ENTITY_CAPACITY,
+        perfect_window_seconds=PERFECT_WINDOW,
+        good_window_seconds=GOOD_WINDOW,
+        miss_window_seconds=MISS_WINDOW,
+        points_by_judgment=POINTS,
+        on_judgment=lambda judgment, layer, lane_index: calls.append((judgment, layer, lane_index)),
+    )
+
+    null_audio_clock.set_now_seconds(1.0)
+    _press(null_input_provider, "lane_2")
+    _update(system, world, 0.016)
+
+    assert calls == [(Judgment.PERFECT, 1, 2)]
+
+
+def test_on_judgment_receives_sentinel_lane_index_for_an_auto_miss(
+    memory_manager, world, null_audio_clock, null_input_provider
+):
+    _register_note_archetype(memory_manager, world)
+    _spawn_note(world, lane=0, timestamp_seconds=1.0, layer=1)
+    calls = []
+    system = JudgmentSystem(
+        audio_clock=null_audio_clock,
+        input_provider=null_input_provider,
+        note_state_pool_name=NOTE_STATE_POOL_NAME,
+        lane_pool_name=LANE_POOL_NAME,
+        lane_action_names=LANE_ACTIONS,
+        entity_capacity=ENTITY_CAPACITY,
+        perfect_window_seconds=PERFECT_WINDOW,
+        good_window_seconds=GOOD_WINDOW,
+        miss_window_seconds=MISS_WINDOW,
+        points_by_judgment=POINTS,
+        on_judgment=lambda judgment, layer, lane_index: calls.append((judgment, layer, lane_index)),
+    )
+
+    null_audio_clock.set_now_seconds(1.0 + MISS_WINDOW + 0.01)
+    _update(system, world, 0.016)
+
+    assert calls == [(Judgment.MISS, 1, -1)]
+
+
+def test_omitting_on_judgment_preserves_old_behavior(memory_manager, world, null_audio_clock, null_input_provider):
+    """Omitir on_judgment (default None) nao levanta erro."""
+    _register_note_archetype(memory_manager, world)
+    _spawn_note(world, lane=0, timestamp_seconds=1.0)
+    system = _make_system(null_audio_clock, null_input_provider)  # sem on_judgment
+
+    null_audio_clock.set_now_seconds(1.0)
+    _press(null_input_provider, "lane_0")
+    _update(system, world, 0.016)  # nao deve levantar erro
+
+    assert system.judged_count == 1
 
 
 def test_accuracy_and_judged_count(memory_manager, world, null_audio_clock, null_input_provider):

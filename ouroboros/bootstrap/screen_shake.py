@@ -8,6 +8,10 @@ from __future__ import annotations
 import random
 from typing import Callable, Optional, Tuple
 
+from ouroboros.core.systems.base_system import ISystem
+from ouroboros.core.world import World
+from ouroboros.interfaces.renderer import IRenderer
+
 
 class ScreenShake:
     """
@@ -62,3 +66,28 @@ class ScreenShake:
         decay = self._remaining_seconds / self._duration_seconds
         magnitude = self._intensity * decay
         return (self._rng() * magnitude, self._rng() * magnitude)
+
+
+class ScreenShakeUpdateSystem(ISystem):
+    """
+    Avanca uma `ScreenShake` a cada `world.step()` e repassa o offset
+    resultante pro `IRenderer` (ROADMAP M11) -- mesmo idioma de
+    `ParticleUpdateSystem` (`ouroboros.core.systems.particle_update_system`):
+    registrado via `world.register_system(...)`, congela automaticamente
+    durante uma cena de pausa (nenhum `ISystem` roda enquanto ela estiver
+    no topo da pilha).
+
+    Vive aqui (nao em `ouroboros.core.systems`) porque precisa de
+    `IRenderer.set_camera_offset` -- `ouroboros.core` nunca importa
+    `ouroboros.interfaces` (Regra 2 da Constituicao), mas `ouroboros.bootstrap`
+    (onde `ScreenShake` ja mora) pode.
+    """
+
+    def __init__(self, screen_shake: ScreenShake, renderer: IRenderer) -> None:
+        self._screen_shake = screen_shake
+        self._renderer = renderer
+
+    def update(self, world: World, delta_time: float) -> None:
+        del world
+        dx, dy = self._screen_shake.update(delta_time)
+        self._renderer.set_camera_offset(dx, dy)

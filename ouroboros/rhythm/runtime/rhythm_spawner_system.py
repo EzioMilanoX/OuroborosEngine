@@ -103,7 +103,7 @@ class RhythmSpawnerSystem(ISystem):
         threat_type_pool_name: str,
         max_threats_per_frame: Optional[int] = None,
         note_state_pool_name: Optional[str] = None,
-        on_note_spawned: Optional[Callable[[World, PackedEntityId, int, int], None]] = None,
+        on_note_spawned: Optional[Callable[[World, PackedEntityId, int, int, int], None]] = None,
         hit_times: Optional[np.ndarray] = None,
     ) -> None:
         """Injeta o `IAudioClock` (referencia fixa, nunca trocada apos a
@@ -126,7 +126,7 @@ class RhythmSpawnerSystem(ISystem):
 
         `on_note_spawned` (opcional, default `None`): callback chamado
         UMA VEZ por nota disparada, como `(world, packed_entity_id,
-        lane, threat_type)`, DEPOIS que `lane`/`threat_type`/
+        lane, threat_type, layer)`, DEPOIS que `lane`/`threat_type`/
         `note_state` (se houver) ja foram gravados. Este sistema
         deliberadamente NUNCA escreve em `transform`/`sprite` (nao sabe
         nada sobre aparencia/posicionamento) -- `on_note_spawned` e o
@@ -270,6 +270,7 @@ class RhythmSpawnerSystem(ISystem):
         scheduled_row = self._scheduled_threats[row_index]
         lane_value = scheduled_row["lane"]
         threat_type_value = scheduled_row["threat_type"]
+        layer_value = scheduled_row["layer"]
         lane_pool.active_view()["lane"][lane_row] = lane_value
         threat_type_pool.active_view()["threat_type"][threat_type_row] = threat_type_value
 
@@ -282,8 +283,9 @@ class RhythmSpawnerSystem(ISystem):
             else:
                 note_state_view["timestamp_seconds"][note_state_row] = scheduled_row["timestamp_seconds"]
             note_state_view["packed_entity_id"][note_state_row] = packed_entity_id
+            note_state_view["layer"][note_state_row] = layer_value
 
         if self._on_note_spawned is not None:
-            self._on_note_spawned(world, packed_entity_id, int(lane_value), int(threat_type_value))
+            self._on_note_spawned(world, packed_entity_id, int(lane_value), int(threat_type_value), int(layer_value))
 
         return packed_entity_id

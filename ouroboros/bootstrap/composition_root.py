@@ -47,23 +47,20 @@ class CompositionRoot:
         """Guarda `config`; nao constroi nada pesado ainda (ver `build`)."""
         self._config = config
 
-    def build(self, spatial_grid: Optional[UniformGrid] = None) -> GameLoop:
+    def build_world(self, spatial_grid: Optional[UniformGrid] = None) -> World:
         """
-        Constroi `MemoryManager`, `World`, registra as pools genericas
-        (Pilar 1) e os sistemas na ordem correta, carrega dificuldade/
-        bindings/arquetipos de `data/*.json`, instancia os backends
-        concretos escolhidos (Pilar 2 via `ouroboros.adapters`), e
-        monta um `GameLoop` pronto para `run()`.
+        Constroi `MemoryManager` + `World`, registra as pools genericas
+        (Pilar 1) e os sistemas do nucleo (`PhysicsSystem`/
+        `CollisionSystem`) -- SEM tocar nenhum backend concreto. Extraido
+        de `build()` (que continua a unica forma de montar um `GameLoop`
+        completo) para um produto que precisa de mais de um `World` ao
+        longo do processo (ex.: um menu antes de qualquer partida, com
+        cada partida trocando o `World` via `GameLoop.replace_world` --
+        ver docstring de `replace_world`) poder montar um `World` novo,
+        completo no Pilar 1, sem reconstruir renderer/input/audio (que
+        devem sobreviver a essa troca).
 
-        `spatial_grid`: opcional, repassado direto pro `CollisionSystem`
-        (Pilar 1) que este metodo ja constroi -- sem ele, a deteccao de
-        colisao roda em forca-bruta O(n^2) (default, preserva o
-        comportamento de sempre). Um produto que ja sabe os limites do seu
-        mundo (ex.: o Roguelite, a partir de uma `DungeonLayout` ja gerada)
-        pode montar seu proprio `UniformGrid` e passar aqui -- `CompositionRoot`
-        continua agnostico de QUALQUER conceito especifico de produto
-        (nao sabe o que e uma "masmorra"), so aceita um objeto ja pronto do
-        Pilar 1.
+        `spatial_grid`: ver docstring de `build`.
         """
         memory_manager = MemoryManager(entity_capacity=self._config.entity_capacity)
         for pool_name, dtype in COMPONENT_SCHEMAS.items():
@@ -80,6 +77,25 @@ class CompositionRoot:
                 spatial_grid=spatial_grid,
             )
         )
+        return world
+
+    def build(self, spatial_grid: Optional[UniformGrid] = None) -> GameLoop:
+        """
+        Constroi um `World` completo (via `build_world`, Pilar 1),
+        instancia os backends concretos escolhidos (Pilar 2 via
+        `ouroboros.adapters`), e monta um `GameLoop` pronto para `run()`.
+
+        `spatial_grid`: opcional, repassado direto pro `CollisionSystem`
+        (Pilar 1) que `build_world` ja constroi -- sem ele, a deteccao de
+        colisao roda em forca-bruta O(n^2) (default, preserva o
+        comportamento de sempre). Um produto que ja sabe os limites do seu
+        mundo (ex.: o Roguelite, a partir de uma `DungeonLayout` ja gerada)
+        pode montar seu proprio `UniformGrid` e passar aqui -- `CompositionRoot`
+        continua agnostico de QUALQUER conceito especifico de produto
+        (nao sabe o que e uma "masmorra"), so aceita um objeto ja pronto do
+        Pilar 1.
+        """
+        world = self.build_world(spatial_grid)
 
         renderer = PygameRenderer()
         renderer.initialize(self._config.window_width, self._config.window_height, self._config.window_title)

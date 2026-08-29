@@ -29,6 +29,7 @@ class NullRenderer(IRenderer):
         self.draw_particles_calls = []
         self._loaded_textures = {}
         self._is_fullscreen = False
+        self.camera_offset = (0.0, 0.0)
 
     def initialize(self, width: int, height: int, title: str) -> None:
         self._width = width
@@ -36,6 +37,9 @@ class NullRenderer(IRenderer):
 
     def set_fullscreen(self, enabled: bool) -> None:
         self._is_fullscreen = enabled
+
+    def set_camera_offset(self, dx: float, dy: float) -> None:
+        self.camera_offset = (dx, dy)
 
     def begin_frame(self) -> None:
         self.begin_frame_count += 1

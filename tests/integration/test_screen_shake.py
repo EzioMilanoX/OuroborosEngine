@@ -5,7 +5,8 @@
 """Testa ScreenShake: offset decai ao longo da duracao, expira, magnitude limitada pela intensidade."""
 from __future__ import annotations
 
-from ouroboros.bootstrap.screen_shake import ScreenShake
+from ouroboros.bootstrap.screen_shake import ScreenShake, ScreenShakeUpdateSystem
+from ouroboros.interfaces.null.null_renderer import NullRenderer
 
 
 def test_no_shake_triggered_returns_zero_offset():
@@ -105,3 +106,14 @@ def test_additive_stacking_via_current_magnitude_matches_a_constant_decay_rate()
 
     add_shake(20.0)  # estouraria o teto -- fica clampado em 18.0
     assert shake.current_magnitude() == 18.0
+
+
+def test_screen_shake_update_system_forwards_the_decayed_offset_to_the_renderer(world):
+    shake = ScreenShake(rng=lambda: 1.0)
+    shake.trigger(intensity=10.0, duration_seconds=1.0)
+    renderer = NullRenderer()
+    world.register_system(ScreenShakeUpdateSystem(shake, renderer))
+
+    world.step(0.5)  # metade da duracao decorrida -- offset esperado = 5.0
+
+    assert renderer.camera_offset == (5.0, 5.0)

@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from enum import IntEnum
-from typing import Optional, Tuple
+from typing import Callable, Optional, Tuple
 
 import numpy as np
 
@@ -105,6 +105,7 @@ class JudgmentSystem(ISystem):
         points_by_judgment: Tuple[int, int, int] = (300, 100, 0),
         audio_engine: Optional[IAudioEngine] = None,
         sfx_ids_by_judgment: Optional[Tuple[str, str, str]] = None,
+        on_judgment: Optional[Callable[[Judgment, int, int], None]] = None,
     ) -> None:
         """Resolve nomes de pool uma unica vez (fora do hot-loop) e
         pre-aloca `self._processed_scratch` (shape `(entity_capacity,)`,
@@ -133,7 +134,21 @@ class JudgmentSystem(ISystem):
         pequenas, so em teste), mas e a primeira vez que este sistema
         chama algo em `IAudioEngine` de dentro de `update()`, entao vale
         registrar a excecao aqui, mesmo padrao de honestidade ja usado
-        no resto desta classe."""
+        no resto desta classe.
+
+        `on_judgment` (opcional, default `None`, mesmo idioma de
+        `audio_engine`/`sfx_ids_by_judgment` -- omitir preserva 100% o
+        comportamento antigo): chamado UMA VEZ por nota julgada, como
+        `(judgment, layer, lane_index)`, DEPOIS que score/combo ja foram
+        atualizados e a entidade ja foi destruida (ROADMAP M11.3/M11.4 --
+        feedback visual por julgamento/camada, ex.: particula na batida
+        acertada, screen shake no erro). `layer` vem de
+        `NOTE_STATE_DTYPE['layer']` (copiado no spawn de
+        `SCHEDULED_THREAT_DTYPE['layer']`). `lane_index` so faz sentido
+        pra um julgamento decidido por `_judge_presses` (uma posicao de
+        tela pra nascer, ex., uma particula) -- `_auto_miss_expired`
+        (Erro automatico, nunca Perfeito/Bom, ver docstring da classe)
+        passa `-1` (sentinela, nao endereca nenhuma lane especifica)."""
         if sfx_ids_by_judgment is not None and len(sfx_ids_by_judgment) != 3:
             raise ValueError("sfx_ids_by_judgment deve ter exatamente 3 elementos (perfeito, bom, erro)")
 
@@ -148,6 +163,7 @@ class JudgmentSystem(ISystem):
         self._points_by_judgment = points_by_judgment
         self._audio_engine = audio_engine
         self._sfx_ids_by_judgment = sfx_ids_by_judgment
+        self._on_judgment = on_judgment
         self._processed_scratch = np.zeros(entity_capacity, dtype=bool)
 
         self._score = 0
@@ -246,6 +262,8 @@ class JudgmentSystem(ISystem):
                 self._classify(best_delta),
                 entity_index=int(entity_indices[position]),
                 packed_entity_id=int(ns_view["packed_entity_id"][ns_rows[position]]),
+                layer=int(ns_view["layer"][ns_rows[position]]),
+                lane_index=lane_index,
             )
 
     def _auto_miss_expired(
@@ -270,6 +288,8 @@ class JudgmentSystem(ISystem):
                 Judgment.MISS,
                 entity_index=entity_index,
                 packed_entity_id=int(ns_view["packed_entity_id"][ns_rows[position]]),
+                layer=int(ns_view["layer"][ns_rows[position]]),
+                lane_index=-1,
             )
 
     def _classify(self, delta_seconds: float) -> Judgment:
@@ -280,8 +300,17 @@ class JudgmentSystem(ISystem):
             return Judgment.GOOD
         return Judgment.MISS
 
-    def _apply_judgment(self, world: World, judgment: Judgment, entity_index: int, packed_entity_id: int) -> None:
-        """Aplica um julgamento ja decidido: atualiza score/combo, marca a entidade como processada, e destroi (diferido)."""
+    def _apply_judgment(
+        self,
+        world: World,
+        judgment: Judgment,
+        entity_index: int,
+        packed_entity_id: int,
+        layer: int,
+        lane_index: int,
+    ) -> None:
+        """Aplica um julgamento ja decidido: atualiza score/combo, marca a entidade como processada,
+        destroi (diferido), e opcionalmente dispara `on_judgment(judgment, layer, lane_index)`."""
         self._processed_scratch[entity_index] = True
         world.destroy_entity(packed_entity_id)
 
@@ -300,3 +329,6 @@ class JudgmentSystem(ISystem):
 
         if self._audio_engine is not None and self._sfx_ids_by_judgment is not None:
             self._audio_engine.play_one_shot(self._sfx_ids_by_judgment[int(judgment)])
+
+        if self._on_judgment is not None:
+            self._on_judgment(judgment, layer, lane_index)

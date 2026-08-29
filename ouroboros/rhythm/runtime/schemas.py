@@ -44,6 +44,7 @@ NOTE_STATE_DTYPE: np.dtype = np.dtype(
     [
         ("timestamp_seconds", np.float64),
         ("packed_entity_id", np.uint64),
+        ("layer", np.int8),
     ]
 )
 """Schema de UM registro por-entidade de nota ja instanciada (SoA),
@@ -66,6 +67,12 @@ Campos:
         (`entity_index`); sem isso, sistemas que descobrem uma entidade
         via `ComponentPool.active_entity_indices()` nao teriam como
         chamar `World.destroy_entity()` nela.
+    layer: copiado de `SCHEDULED_THREAT_DTYPE['layer']` no momento do
+        spawn (ROADMAP M11.4) -- permite a `JudgmentSystem` saber a
+        camada de extracao da nota no momento do julgamento (hit/miss),
+        para influenciar feedback visual/sonoro por camada, sem precisar
+        de um caminho de volta pra `scheduled_threats` (mesmo motivo de
+        `timestamp_seconds` acima).
 
 Diferenca deliberada de `DungeonStreamingSystem.ROOM_INSTANCE_DTYPE`
 (Pilar 3): aquela e uma `ComponentPool` PRIVADA do proprio sistema,

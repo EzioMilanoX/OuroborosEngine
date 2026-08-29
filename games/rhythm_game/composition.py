@@ -86,8 +86,10 @@ def _make_on_note_spawned():
     nota fica com `tint_a == 0` (zerado por padrao) e o renderer a ignora
     silenciosamente -- ver docstring de `RhythmSpawnerSystem.__init__`."""
 
-    def on_note_spawned(world: World, packed_entity_id: PackedEntityId, lane: int, threat_type: int) -> None:
-        del threat_type
+    def on_note_spawned(
+        world: World, packed_entity_id: PackedEntityId, lane: int, threat_type: int, layer: int
+    ) -> None:
+        del threat_type, layer
         index = unpack_index(packed_entity_id)
         sprite_pool = world.get_pool("sprite")
         transform_pool = world.get_pool("transform")
