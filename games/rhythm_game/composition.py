@@ -1,9 +1,8 @@
-"""Composicao do Jogo Musical: registra pools/arquetipo/sistemas especificos por cima do CompositionRoot generico."""
+"""Composicao do Jogo Musical: MenuScene (selecao musica/dificuldade) + montagem de uma partida por cima do CompositionRoot generico."""
 from __future__ import annotations
 
-import json
 from pathlib import Path
-from typing import Tuple
+from typing import Callable, Sequence, Tuple
 
 import numpy as np
 
@@ -11,10 +10,13 @@ from ouroboros.bootstrap.audio_bank_loader import AudioBankDefinitionError, load
 from ouroboros.bootstrap.composition_root import CompositionRoot
 from ouroboros.bootstrap.engine_config import EngineConfig
 from ouroboros.bootstrap.game_loop import GameLoop
+from ouroboros.bootstrap.scene import GameplayScene
 from ouroboros.core.memory.handles import PackedEntityId, unpack_index
 from ouroboros.core.world import World
 from ouroboros.interfaces.renderer import SHAPE_CIRCLE
 from ouroboros.roguelite.entities.archetype_loader import ArchetypeLoader
+from ouroboros.rhythm.loaders.rhythm_difficulty_loader import RhythmDifficultyLoader
+from ouroboros.rhythm.loaders.song_catalog_loader import SongCatalogLoader, SongEntry
 from ouroboros.rhythm.runtime.approach_schedule import split_spawn_and_hit_schedules
 from ouroboros.rhythm.runtime.beatmap_loader import BeatmapLoader
 from ouroboros.rhythm.runtime.judgment_system import JudgmentSystem
@@ -23,6 +25,7 @@ from ouroboros.rhythm.runtime.rhythm_spawner_system import RhythmSpawnerSystem
 from ouroboros.rhythm.runtime.schemas import NOTE_STATE_DTYPE
 
 from games.rhythm_game.hud import build_hud_callback
+from games.rhythm_game.menu_scene import MenuRow, MenuScene
 from games.rhythm_game.pause_scene import PauseScene
 from games.rhythm_game.systems.pause_on_action_system import PauseOnActionSystem
 from games.rhythm_game.systems.quit_on_action_system import QuitOnActionSystem
@@ -50,10 +53,8 @@ NOTE_LAYER_Z = 10
 
 _GAME_DIR = Path(__file__).resolve().parent
 _REPO_ROOT = _GAME_DIR.parent.parent
-DIFFICULTY_PATH = _REPO_ROOT / "data" / "difficulties" / "rhythm" / "rhythm_normal.json"
-BEATMAP_PATH = _REPO_ROOT / "data" / "beatmaps" / "demo_track.beatmap.json"
-TRACK_AUDIO_PATH = _GAME_DIR / "assets" / "audio" / "demo_track.wav"
-TRACK_ID = "demo_track"
+RHYTHM_DIFFICULTIES_DIR = _REPO_ROOT / "data" / "difficulties" / "rhythm"
+SONGS_DIR = _REPO_ROOT / "data" / "songs"
 
 RHYTHM_JUDGMENT_AUDIO_PATH = _REPO_ROOT / "data" / "audio" / "rhythm_judgment.json"
 SFX_IDS_BY_JUDGMENT = ("judgment_perfect", "judgment_good", "judgment_miss")
@@ -64,11 +65,6 @@ SFX_IDS_BY_JUDGMENT = ("judgment_perfect", "judgment_good", "judgment_miss")
 # que nao tem as pools `lane`/`threat_type`/`note_state` -- colocar o arquetipo deste jogo aqui
 # evita esse conflito sem acoplar nada entre os dois produtos.
 RHYTHM_ARCHETYPES_DIR = _REPO_ROOT / "data" / "archetypes" / "rhythm"
-
-
-def _load_difficulty() -> dict:
-    with open(DIFFICULTY_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
 
 
 def _lane_x_positions(window_width: int) -> Tuple[float, ...]:
@@ -112,15 +108,26 @@ def _make_on_note_spawned():
     return on_note_spawned
 
 
-def build_game(config: EngineConfig) -> GameLoop:
+def _start_song(
+    game_loop: GameLoop,
+    config: EngineConfig,
+    song: SongEntry,
+    difficulty: dict,
+    on_return_to_menu: Callable[[], None],
+) -> None:
+    """Monta um `World` NOVO (Pilar 1, via `CompositionRoot.build_world()` --
+    nao reconstroi renderer/input/audio, que sobrevivem a troca de musica)
+    pra `song`/`difficulty`, registra por cima as pools/arquetipo/sistemas
+    especificos deste jogo (Pilar 4 + HUD), carrega o beatmap/audio da
+    musica escolhida, e substitui o `World`/pilha de cenas do `game_loop`
+    ja existente (ROADMAP M11.1 -- chamado a partir de `MenuScene.
+    confirm_selection()`, nunca constroi seu proprio `GameLoop`).
+
+    `on_return_to_menu`: registrado em `QuitOnActionSystem` -- 'quit'
+    durante esta partida NAO encerra o processo (so o `MenuScene` faz
+    isso), volta pro menu.
     """
-    Monta o Jogo Musical completo: usa `CompositionRoot(config).build()`
-    para o `World` generico (Pilar 1/2), registra por cima as pools/
-    arquetipo/sistemas especificos deste jogo (Pilar 4 + HUD), carrega o
-    beatmap e a musica, e retorna um `GameLoop` pronto para `.run()`.
-    """
-    game_loop = CompositionRoot(config).build()
-    world = game_loop.world
+    world = CompositionRoot(config).build_world()
 
     world.create_pool(LANE_POOL_NAME, np.dtype([("lane", np.int8)]), dense_capacity=config.entity_capacity)
     world.create_pool(
@@ -133,26 +140,14 @@ def build_game(config: EngineConfig) -> GameLoop:
     # ArchetypeLoader valida isso ANTES de registrar qualquer coisa.
     ArchetypeLoader(RHYTHM_ARCHETYPES_DIR).load_and_register_all(world)
 
-    difficulty = _load_difficulty()
     lane_x_positions = _lane_x_positions(config.window_width)
     judgment_line_y = float(config.window_height - 100)
 
-    scheduled_threats = BeatmapLoader({BEATMAP_THREAT_TYPE_NAME: 0}).load(BEATMAP_PATH)
+    scheduled_threats = BeatmapLoader({BEATMAP_THREAT_TYPE_NAME: 0}).load(song.beatmap_path)
     spawn_threats, hit_times = split_spawn_and_hit_schedules(scheduled_threats, difficulty["approach_seconds"])
 
     audio_clock = game_loop.audio_engine.get_clock()
     audio_clock.calibrate_latency(difficulty["output_latency_seconds"])
-
-    # Carrega o banco de SFX e valida os ids ANTES de construir o JudgmentSystem --
-    # um id incompativel deve falhar aqui, na composicao, nunca dentro do loop de
-    # gameplay quando JudgmentSystem tentar tocar um som inexistente (ver docstring
-    # de load_audio_bank).
-    loaded_sfx_ids = load_audio_bank(game_loop.audio_engine, str(RHYTHM_JUDGMENT_AUDIO_PATH))
-    missing_sfx_ids = [sfx_id for sfx_id in SFX_IDS_BY_JUDGMENT if sfx_id not in loaded_sfx_ids]
-    if missing_sfx_ids:
-        raise AudioBankDefinitionError(
-            f"SFX_IDS_BY_JUDGMENT referencia id(s) ausentes em {RHYTHM_JUDGMENT_AUDIO_PATH}: {missing_sfx_ids}"
-        )
 
     spawner = RhythmSpawnerSystem(
         audio_clock=audio_clock,
@@ -191,23 +186,29 @@ def build_game(config: EngineConfig) -> GameLoop:
     world.register_system(spawner)
     world.register_system(scroll)
     world.register_system(judgment)
-    world.register_system(QuitOnActionSystem(game_loop.input_provider, game_loop))
+    world.register_system(QuitOnActionSystem(game_loop.input_provider, on_quit_action=on_return_to_menu))
 
-    # A GameplayScene base ja foi auto-empilhada por GameLoop.__init__ (ROADMAP M2) --
-    # a PauseScene reusa essa MESMA instancia pra redesenhar o ultimo frame congelado
-    # por baixo do overlay de pausa, sem duplicar a logica de gather+draw.
+    # `gameplay_scene` e construida UMA VEZ aqui e reusada tanto pela PauseScene
+    # (que precisa redesenhar o ultimo frame congelado por baixo do overlay de
+    # pausa) quanto por `reset_scenes` abaixo -- NUNCA `game_loop.current_scene`
+    # (que neste momento e o MenuScene/GameplayScene da musica ANTERIOR, nao a
+    # cena desta partida).
+    gameplay_scene = GameplayScene()
     pause_scene = PauseScene(
         input_provider=game_loop.input_provider,
         game_loop=game_loop,
         audio_engine=game_loop.audio_engine,
-        track_id=TRACK_ID,
-        gameplay_scene=game_loop.current_scene,
+        track_id=song.track_id,
+        gameplay_scene=gameplay_scene,
         viewport_size=(config.window_width, config.window_height),
     )
     world.register_system(PauseOnActionSystem(game_loop.input_provider, game_loop, pause_scene))
 
-    game_loop.audio_engine.load_track(TRACK_ID, str(TRACK_AUDIO_PATH))
-    game_loop.audio_engine.play_track(TRACK_ID)
+    game_loop.audio_engine.load_track(song.track_id, str(song.audio_path))
+    game_loop.audio_engine.play_track(song.track_id)
+
+    game_loop.replace_world(world)
+    game_loop.reset_scenes(gameplay_scene)
 
     game_loop.set_on_draw_ui(
         build_hud_callback(
@@ -220,4 +221,94 @@ def build_game(config: EngineConfig) -> GameLoop:
         )
     )
 
+
+def _build_menu_scene(game_loop: GameLoop, config: EngineConfig, rows: Sequence[MenuRow]) -> MenuScene:
+    """Constroi um `MenuScene` novo sobre o mesmo catalogo `rows` -- chamado
+    tanto na montagem inicial (`build_menu_game`) quanto ao voltar pro
+    menu a partir de uma partida (`_make_on_return_to_menu`)."""
+
+    def on_confirm(song: SongEntry, difficulty_id: str) -> None:
+        difficulty = RhythmDifficultyLoader(RHYTHM_DIFFICULTIES_DIR).load(difficulty_id)
+        _start_song(
+            game_loop, config, song, difficulty,
+            on_return_to_menu=_make_on_return_to_menu(game_loop, config, rows, song.track_id),
+        )
+
+    return MenuScene(
+        input_provider=game_loop.input_provider,
+        game_loop=game_loop,
+        rows=rows,
+        on_confirm=on_confirm,
+        viewport_size=(config.window_width, config.window_height),
+    )
+
+
+def _make_on_return_to_menu(
+    game_loop: GameLoop, config: EngineConfig, rows: Sequence[MenuRow], active_track_id: str
+) -> Callable[[], None]:
+    """`on_quit_action` de `QuitOnActionSystem` durante uma partida: para a
+    musica em andamento, limpa o HUD/camera-shake residual da partida
+    abandonada, e substitui a pilha de cenas por um `MenuScene` NOVO
+    (nao o mesmo objeto -- `reset_scenes` exige uma cena, e este menu
+    pode ter side-effects de cursor de uma sessao anterior que nao
+    devem sobreviver a uma nova visita)."""
+
+    def on_return_to_menu() -> None:
+        game_loop.audio_engine.stop_track(active_track_id)
+        game_loop.renderer.set_camera_offset(0.0, 0.0)
+        game_loop.set_on_draw_ui(None)
+        game_loop.reset_scenes(_build_menu_scene(game_loop, config, rows))
+
+    return on_return_to_menu
+
+
+def build_menu_game(config: EngineConfig) -> GameLoop:
+    """
+    Monta o `GameLoop` do Jogo Musical no estado de MENU (ROADMAP M11.1):
+    `CompositionRoot(config).build()` da um `World` placeholder generico +
+    os backends reais (construidos UMA VEZ, sobrevivem a qualquer musica
+    escolhida depois via `replace_world`); carrega o banco de SFX de
+    julgamento e o catalogo de musicas/dificuldades reais UMA VEZ aqui
+    (recursos de vida-de-processo, ao contrario de `ParticleStorage`/
+    `ScreenShake`, que sao por-partida); e substitui a pilha de cenas por
+    um `MenuScene` ANTES do primeiro frame, entao a `GameplayScene` base
+    (sobre o `World` placeholder vazio) nunca chega a rodar `world.step()`
+    nem uma vez.
+    """
+    game_loop = CompositionRoot(config).build()
+
+    # Carrega o banco de SFX e valida os ids ANTES de expor o menu -- um id
+    # incompativel deve falhar aqui, na composicao, nunca dentro do loop de
+    # gameplay quando JudgmentSystem tentar tocar um som inexistente (ver
+    # docstring de load_audio_bank).
+    loaded_sfx_ids = load_audio_bank(game_loop.audio_engine, str(RHYTHM_JUDGMENT_AUDIO_PATH))
+    missing_sfx_ids = [sfx_id for sfx_id in SFX_IDS_BY_JUDGMENT if sfx_id not in loaded_sfx_ids]
+    if missing_sfx_ids:
+        raise AudioBankDefinitionError(
+            f"SFX_IDS_BY_JUDGMENT referencia id(s) ausentes em {RHYTHM_JUDGMENT_AUDIO_PATH}: {missing_sfx_ids}"
+        )
+
+    songs = SongCatalogLoader(SONGS_DIR, repo_root=_REPO_ROOT).load_all()
+    difficulty_ids = RhythmDifficultyLoader(RHYTHM_DIFFICULTIES_DIR).list_available()
+    rows: Tuple[MenuRow, ...] = tuple(
+        (song, difficulty_id) for song in songs for difficulty_id in difficulty_ids
+    )
+
+    game_loop.reset_scenes(_build_menu_scene(game_loop, config, rows))
+    return game_loop
+
+
+def build_game(config: EngineConfig) -> GameLoop:
+    """Atalho de conveniencia: monta o menu (`build_menu_game`) e inicia
+    direto a linha 0 do catalogo (primeira musica x primeira dificuldade),
+    sem simular nenhuma tecla -- mesmo caminho de codigo que
+    `MenuScene.confirm_selection()` usa, so acionado programaticamente
+    (mesmo espirito do atalho `--play` do BulletHell, ver ROADMAP M8c).
+    Usado por testes/ferramentas que precisam de uma partida pronta pra
+    jogar sem dirigir a navegacao do menu.
+    """
+    game_loop = build_menu_game(config)
+    menu_scene = game_loop.current_scene
+    assert isinstance(menu_scene, MenuScene)
+    menu_scene.confirm_selection()
     return game_loop

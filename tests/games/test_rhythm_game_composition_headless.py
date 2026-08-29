@@ -25,7 +25,9 @@ from games.rhythm_game.composition import (
     NOTE_STATE_POOL_NAME,
     THREAT_TYPE_POOL_NAME,
     build_game,
+    build_menu_game,
 )
+from games.rhythm_game.menu_scene import MenuScene
 from games.rhythm_game.pause_scene import PauseScene
 
 _JUDGMENT_LINE_Y = 500.0  # config.json: window_height=600 -> judgment_line_y = 600 - 100 (ver composition.py)
@@ -131,6 +133,86 @@ def test_spawned_notes_have_real_lead_time_above_the_judgment_line(game_loop: Ga
         "nota deveria estar visivelmente ACIMA da linha de julgamento logo apos nascer "
         "(antecedencia real via approach_seconds), nao em cima dela"
     )
+
+
+@pytest.fixture
+def menu_game_loop(config: EngineConfig) -> GameLoop:
+    """Ao contrario da fixture `game_loop` (que ja usa o atalho `build_game`
+    -- pula a navegacao, comeca com uma musica tocando), esta comeca de
+    fato no MenuScene, pra testar a navegacao/confirmacao/retorno reais."""
+    loop = build_menu_game(config)
+    yield loop
+    loop.renderer.shutdown()
+    if pygame.mixer.get_init():
+        pygame.mixer.quit()
+
+
+def _rig_action_toggle_on_frame(game_loop: GameLoop, action_name: str, toggle_on_frame_indices):
+    """Generalizacao de `_rig_pause_toggle_on_frame`: `is_action_pressed(action_name)`
+    retorna True exatamente nos indices de frame (0-based) listados, preservando
+    o comportamento real (sempre False) pras demais acoes."""
+    frame_count = {"n": 0}
+    original_poll = game_loop.input_provider.poll
+    original_is_action_pressed = game_loop.input_provider.is_action_pressed
+
+    def counting_poll() -> None:
+        original_poll()
+        frame_count["n"] += 1
+
+    def fake_is_action_pressed(name: str) -> bool:
+        if name == action_name:
+            return frame_count["n"] in toggle_on_frame_indices
+        return original_is_action_pressed(name)
+
+    game_loop.input_provider.poll = counting_poll
+    game_loop.input_provider.is_action_pressed = fake_is_action_pressed
+    return frame_count
+
+
+def test_build_menu_game_starts_on_the_menu_scene(menu_game_loop: GameLoop):
+    assert isinstance(menu_game_loop.current_scene, MenuScene)
+
+
+def test_confirming_the_menu_starts_the_selected_song_and_plays_music(menu_game_loop: GameLoop):
+    frame_count = _rig_action_toggle_on_frame(menu_game_loop, "confirm", toggle_on_frame_indices={1})
+    menu_game_loop.input_provider.wants_quit = lambda: frame_count["n"] >= 2
+
+    menu_game_loop.run()
+
+    assert isinstance(menu_game_loop.current_scene, GameplayScene)
+    assert menu_game_loop.audio_engine.get_clock().is_playing()
+    assert menu_game_loop.world.get_pool(NOTE_STATE_POOL_NAME) is not None
+
+
+def test_pressing_quit_at_the_menu_stops_the_game_loop(menu_game_loop: GameLoop):
+    frame_count = _rig_action_toggle_on_frame(menu_game_loop, "quit", toggle_on_frame_indices={1})
+    # sentinela: se QuitOnActionSystem nao parar o loop, este teste travaria
+    # rodando pra sempre -- wants_quit so vira True bem mais tarde, entao um
+    # game_loop.stop() efetivo e a UNICA forma de run() retornar a tempo.
+    menu_game_loop.input_provider.wants_quit = lambda: frame_count["n"] >= 100_000
+
+    menu_game_loop.run()
+
+    assert frame_count["n"] < 100_000
+
+
+def test_pressing_quit_during_a_song_returns_to_the_menu_scene_instead_of_quitting(menu_game_loop: GameLoop):
+    """ROADMAP M11.1: 'quit' durante uma partida volta pro menu (nao encerra
+    o processo) -- so 'quit' NO MENU encerra de verdade (teste anterior)."""
+    confirm_frames = _rig_action_toggle_on_frame(menu_game_loop, "confirm", toggle_on_frame_indices={1})
+    menu_game_loop.input_provider.wants_quit = lambda: confirm_frames["n"] >= 2
+    menu_game_loop.run()
+    assert isinstance(menu_game_loop.current_scene, GameplayScene)
+    clock = menu_game_loop.audio_engine.get_clock()
+    assert clock.is_playing()
+
+    quit_frames = _rig_action_toggle_on_frame(menu_game_loop, "quit", toggle_on_frame_indices={2})
+    menu_game_loop.input_provider.wants_quit = lambda: quit_frames["n"] >= 3
+    menu_game_loop.run()
+
+    assert isinstance(menu_game_loop.current_scene, MenuScene)
+    assert clock.is_playing() is False  # a musica abandonada foi parada (stop_track)
+    assert menu_game_loop._on_draw_ui is None  # HUD da partida abandonada nao deve sobreviver ao retorno
 
 
 def _rig_pause_toggle_on_frame(game_loop: GameLoop, toggle_on_frame_indices):
