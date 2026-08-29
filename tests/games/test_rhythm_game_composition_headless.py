@@ -173,6 +173,16 @@ def test_build_menu_game_starts_on_the_menu_scene(menu_game_loop: GameLoop):
     assert isinstance(menu_game_loop.current_scene, MenuScene)
 
 
+def test_build_menu_game_lists_both_real_songs(menu_game_loop: GameLoop):
+    """ROADMAP M11.2: o catalogo real ja tem 2 musicas (demo_track/second_track) --
+    com 1 unica dificuldade real hoje, isso e o produto cartesiano inteiro."""
+    menu_scene = menu_game_loop.current_scene
+    assert isinstance(menu_scene, MenuScene)
+    assert len(menu_scene._rows) == 2
+    track_ids = {song.track_id for song, _difficulty_id in menu_scene._rows}
+    assert track_ids == {"demo_track", "second_track"}
+
+
 def test_confirming_the_menu_starts_the_selected_song_and_plays_music(menu_game_loop: GameLoop):
     frame_count = _rig_action_toggle_on_frame(menu_game_loop, "confirm", toggle_on_frame_indices={1})
     menu_game_loop.input_provider.wants_quit = lambda: frame_count["n"] >= 2

@@ -29,6 +29,18 @@ def test_load_all_reads_the_real_demo_track_entry() -> None:
     assert demo.audio_path.is_file()
 
 
+def test_load_all_reads_the_real_second_track_entry() -> None:
+    """ROADMAP M11.2: segunda musica jogavel real, gerada via o pipeline
+    offline (perfil hybrid) -- ver games/rhythm_game/tools/generate_second_track.py."""
+    loader = SongCatalogLoader(REAL_SONGS_DIR, repo_root=REPO_ROOT)
+    songs = loader.load_all()
+
+    assert len(songs) >= 2
+    second = next(song for song in songs if song.track_id == "second_track")
+    assert second.beatmap_path.is_file()
+    assert second.audio_path.is_file()
+
+
 def test_load_all_returns_song_entry_instances() -> None:
     loader = SongCatalogLoader(REAL_SONGS_DIR, repo_root=REPO_ROOT)
     songs = loader.load_all()

@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -13,6 +14,8 @@ import pytest
 from ouroboros.rhythm.beatmap_format import BEATMAP_SCHEMA_VERSION
 from ouroboros.rhythm.runtime.beatmap_loader import BeatmapFormatError, BeatmapLoader
 from ouroboros.rhythm.runtime.schemas import SCHEDULED_THREAT_DTYPE
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _write_beatmap(path, beatmap_dict):
@@ -113,3 +116,18 @@ def test_load_empty_threats_returns_empty_array(tmp_path):
 
     assert scheduled.shape[0] == 0
     assert scheduled.dtype == SCHEDULED_THREAT_DTYPE
+
+
+def test_real_second_track_beatmap_has_both_kick_and_vocal_layers():
+    """ROADMAP M11.2/M11.4: ao contrario de demo_track.beatmap.json (extracao
+    legada, layer="" em toda nota), second_track.beatmap.json foi gerado via
+    --profile hybrid e deve ter diversidade real de camada -- a base de dados
+    que prova M11.4 (layer influenciando algo visivel) contra uma musica de
+    verdade, nao so um fixture sintetico."""
+    beatmap_path = REPO_ROOT / "data" / "beatmaps" / "second_track.beatmap.json"
+    loader = BeatmapLoader({"rhythm_threat_basic": 0})
+
+    scheduled = loader.load(beatmap_path)
+
+    layers_present = set(scheduled["layer"].tolist())
+    assert layers_present == {0, 1}  # "kick" -> 0, "vocal" -> 1 (DEFAULT_LAYER_NAME_TO_ID)
