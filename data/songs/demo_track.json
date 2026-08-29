@@ -1,0 +1,6 @@
+{
+  "track_id": "demo_track",
+  "display_name": "Demo Track",
+  "beatmap_path": "data/beatmaps/demo_track.beatmap.json",
+  "audio_path": "games/rhythm_game/assets/audio/demo_track.wav"
+}

@@ -50,7 +50,7 @@ NOTE_LAYER_Z = 10
 
 _GAME_DIR = Path(__file__).resolve().parent
 _REPO_ROOT = _GAME_DIR.parent.parent
-DIFFICULTY_PATH = _REPO_ROOT / "data" / "difficulties" / "rhythm_normal.json"
+DIFFICULTY_PATH = _REPO_ROOT / "data" / "difficulties" / "rhythm" / "rhythm_normal.json"
 BEATMAP_PATH = _REPO_ROOT / "data" / "beatmaps" / "demo_track.beatmap.json"
 TRACK_AUDIO_PATH = _GAME_DIR / "assets" / "audio" / "demo_track.wav"
 TRACK_ID = "demo_track"

@@ -3,6 +3,6 @@
   "window_height": 600,
   "window_title": "OuroborosEngine -- Jogo Musical (vertical slice)",
   "entity_capacity": 512,
-  "difficulty_path": "data/difficulties/rhythm_normal.json",
+  "difficulty_path": "data/difficulties/rhythm/rhythm_normal.json",
   "input_bindings_path": "data/input_bindings/rhythm_keyboard.json"
 }
