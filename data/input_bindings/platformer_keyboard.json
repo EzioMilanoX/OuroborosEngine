@@ -1,0 +1,6 @@
+{
+  "move_left": "KEY_A",
+  "move_right": "KEY_D",
+  "jump": "KEY_SPACE",
+  "quit": "KEY_ESCAPE"
+}

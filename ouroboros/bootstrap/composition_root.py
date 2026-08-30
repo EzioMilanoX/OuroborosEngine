@@ -13,10 +13,13 @@ from ouroboros.adapters.pygame_backend.pygame_renderer import PygameRenderer
 from ouroboros.bootstrap.engine_config import EngineConfig
 from ouroboros.bootstrap.game_loop import GameLoop
 from ouroboros.core.components.schemas import COMPONENT_SCHEMAS
+from ouroboros.core.grid2d import Grid2D
 from ouroboros.core.memory.memory_manager import MemoryManager
 from ouroboros.core.systems.collision_system import CollisionSystem
+from ouroboros.core.systems.gravity_system import GravitySystem
 from ouroboros.core.systems.physics_system import PhysicsSystem
 from ouroboros.core.systems.spatial_grid import UniformGrid
+from ouroboros.core.systems.tile_collision_system import TileCollisionSystem
 from ouroboros.core.world import World
 
 DEFAULT_MAX_COLLISION_PAIRS: int = 4096
@@ -47,11 +50,17 @@ class CompositionRoot:
         """Guarda `config`; nao constroi nada pesado ainda (ver `build`)."""
         self._config = config
 
-    def build_world(self, spatial_grid: Optional[UniformGrid] = None) -> World:
+    def build_world(
+        self,
+        spatial_grid: Optional[UniformGrid] = None,
+        tile_grid: Optional[Grid2D] = None,
+        gravity_y: Optional[float] = None,
+    ) -> World:
         """
         Constroi `MemoryManager` + `World`, registra as pools genericas
         (Pilar 1) e os sistemas do nucleo (`PhysicsSystem`/
-        `CollisionSystem`) -- SEM tocar nenhum backend concreto. Extraido
+        `CollisionSystem`, opcionalmente `TileCollisionSystem`/
+        `GravitySystem`) -- SEM tocar nenhum backend concreto. Extraido
         de `build()` (que continua a unica forma de montar um `GameLoop`
         completo) para um produto que precisa de mais de um `World` ao
         longo do processo (ex.: um menu antes de qualquer partida, com
@@ -60,7 +69,7 @@ class CompositionRoot:
         completo no Pilar 1, sem reconstruir renderer/input/audio (que
         devem sobreviver a essa troca).
 
-        `spatial_grid`: ver docstring de `build`.
+        `spatial_grid`/`tile_grid`/`gravity_y`: ver docstring de `build`.
         """
         memory_manager = MemoryManager(entity_capacity=self._config.entity_capacity)
         for pool_name, dtype in COMPONENT_SCHEMAS.items():
@@ -77,9 +86,21 @@ class CompositionRoot:
                 spatial_grid=spatial_grid,
             )
         )
+        # Ordem exigida por TileCollisionSystem/GravitySystem (ver suas
+        # docstrings): PhysicsSystem (ja registrado acima) -> TileCollisionSystem
+        # -> GravitySystem, sempre nesta ordem relativa entre os tres.
+        if tile_grid is not None:
+            world.register_system(TileCollisionSystem(memory_manager, tile_grid, self._config.entity_capacity))
+        if gravity_y is not None:
+            world.register_system(GravitySystem(memory_manager, gravity_y))
         return world
 
-    def build(self, spatial_grid: Optional[UniformGrid] = None) -> GameLoop:
+    def build(
+        self,
+        spatial_grid: Optional[UniformGrid] = None,
+        tile_grid: Optional[Grid2D] = None,
+        gravity_y: Optional[float] = None,
+    ) -> GameLoop:
         """
         Constroi um `World` completo (via `build_world`, Pilar 1),
         instancia os backends concretos escolhidos (Pilar 2 via
@@ -94,8 +115,18 @@ class CompositionRoot:
         continua agnostico de QUALQUER conceito especifico de produto
         (nao sabe o que e uma "masmorra"), so aceita um objeto ja pronto do
         Pilar 1.
+
+        `tile_grid`/`gravity_y` (ROADMAP M12): mesmo espirito de
+        `spatial_grid` -- opcionais, `None` preserva 100% o comportamento
+        de sempre (nenhum produto atual os passa). Um produto tipo
+        Platformer monta sua propria `Grid2D` (Pilar 1, agnostica de
+        genero) e passa aqui pra `CompositionRoot` construir/registrar
+        `TileCollisionSystem`/`GravitySystem` na ordem certa -- assim
+        `CompositionRoot` continua o UNICO ponto que constroi um sistema a
+        partir de `MemoryManager` bruto (nenhum script de composicao de
+        produto precisa de acesso direto a ele, so a `world.get_pool(...)`).
         """
-        world = self.build_world(spatial_grid)
+        world = self.build_world(spatial_grid, tile_grid, gravity_y)
 
         renderer = PygameRenderer()
         renderer.initialize(self._config.window_width, self._config.window_height, self._config.window_title)

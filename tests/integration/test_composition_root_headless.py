@@ -11,8 +11,11 @@ import pytest
 from ouroboros.bootstrap.composition_root import CompositionRoot
 from ouroboros.bootstrap.engine_config import EngineConfig
 from ouroboros.bootstrap.game_loop import GameLoop
+from ouroboros.core.grid2d import Grid2D
 from ouroboros.core.systems.collision_system import CollisionSystem
+from ouroboros.core.systems.gravity_system import GravitySystem
 from ouroboros.core.systems.spatial_grid import UniformGrid
+from ouroboros.core.systems.tile_collision_system import TileCollisionSystem
 from ouroboros.core.world import World
 
 
@@ -111,6 +114,56 @@ def _find_collision_system_in_world(world: World) -> CollisionSystem:
         if isinstance(system, CollisionSystem):
             return system
     raise AssertionError("build_world() deveria ter registrado um CollisionSystem")
+
+
+def test_build_world_omits_tile_collision_and_gravity_by_default(engine_config):
+    """Regressao: omitir tile_grid/gravity_y preserva 100% o comportamento
+    de sempre -- nenhum produto atual (Roguelite/Jogo Musical) os passa."""
+    world = CompositionRoot(engine_config).build_world()
+
+    assert not any(isinstance(system, TileCollisionSystem) for system in world.systems)
+    assert not any(isinstance(system, GravitySystem) for system in world.systems)
+
+
+def test_build_world_registers_tile_collision_system_when_a_tile_grid_is_given(engine_config):
+    grid = Grid2D(cols=4, rows=4, cell_size=16.0)
+
+    world = CompositionRoot(engine_config).build_world(tile_grid=grid)
+
+    tile_system = next(s for s in world.systems if isinstance(s, TileCollisionSystem))
+    assert tile_system._grid is grid
+
+
+def test_build_world_registers_gravity_system_when_gravity_y_is_given(engine_config):
+    world = CompositionRoot(engine_config).build_world(gravity_y=900.0)
+
+    gravity_system = next(s for s in world.systems if isinstance(s, GravitySystem))
+    assert gravity_system._gravity_y == 900.0
+
+
+def test_build_world_registers_tile_collision_before_gravity(engine_config):
+    """Ordem exigida pelas duas classes (ver suas docstrings): PhysicsSystem
+    -> TileCollisionSystem -> GravitySystem."""
+    grid = Grid2D(cols=4, rows=4, cell_size=16.0)
+
+    world = CompositionRoot(engine_config).build_world(tile_grid=grid, gravity_y=900.0)
+
+    kinds = [type(system).__name__ for system in world.systems]
+    assert kinds.index("TileCollisionSystem") < kinds.index("GravitySystem")
+    assert kinds.index("PhysicsSystem") < kinds.index("TileCollisionSystem")
+
+
+def test_build_forwards_tile_grid_and_gravity_y_through_to_the_game_loop(engine_config):
+    grid = Grid2D(cols=4, rows=4, cell_size=16.0)
+
+    game_loop = CompositionRoot(engine_config).build(tile_grid=grid, gravity_y=900.0)
+
+    assert any(isinstance(s, TileCollisionSystem) for s in game_loop.world.systems)
+    assert any(isinstance(s, GravitySystem) for s in game_loop.world.systems)
+
+    game_loop.renderer.shutdown()
+    if pygame.mixer.get_init():
+        pygame.mixer.quit()
 
 
 def test_engine_config_from_json_round_trips(tmp_path):

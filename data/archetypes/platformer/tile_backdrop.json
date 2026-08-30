@@ -1,0 +1,8 @@
+{
+  "id": "tile_backdrop",
+  "pools": ["transform", "sprite"],
+  "initial_values": {
+    "sprite": { "texture_id": 0, "frame_index": 0, "tint_r": 90, "tint_g": 70, "tint_b": 60, "tint_a": 255, "layer_z": 0 }
+  },
+  "_nota": "So visual -- a colisao de verdade e resolvida contra a Grid2D (TileCollisionSystem), nunca contra a hitbox de uma entidade aqui (nao tem hitbox nesta pool). initial_values nao e aplicado por ArchetypeLoader (mesmo gap de sempre)."
+}

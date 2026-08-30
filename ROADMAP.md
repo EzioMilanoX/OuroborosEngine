@@ -302,20 +302,57 @@ crítica → implementação → testes → `lint-imports` → smoke → reporta
 um jogo de demonstração mínimo pra provar o primitivo contra um produto real
 — mesmo padrão que achou bugs reais em toda milestone anterior.
 
-### M12 — Platformer: colisão contra tiles `[mais autocontido]`
+### M12 — Platformer: colisão contra tiles `[mais autocontido]` — concluído
 
-1. `Grid2D` (`ouroboros/core/grid2d.py`): container puro de dados (array
-   denso tipado + conversão world↔cell), sem semântica de sólido/pathfinding.
-2. `GravitySystem`/`TileCollisionSystem` (novos, `ouroboros/core/systems/`):
-   gravidade trivial + resolução AABB-vs-grade-sólida por eixo (X depois Y),
-   reconstruindo a posição pré-movimento a partir do que `PhysicsSystem` já
-   integrou neste frame (não duplica Euler). Ordem de registro obrigatória:
-   `PhysicsSystem` → `TileCollisionSystem` → `GravitySystem`.
-3. `games/platformer/`: nível ASCII hardcoded, corrida+pulo, sem
-   inimigos/pontuação.
+1. **`Grid2D`** (`ouroboros/core/grid2d.py`): container puro de dados (array
+   denso tipado `[row,col]` + conversão world↔cell, `is_solid` como única
+   convenção v1 — qualquer valor `!= 0`), sem semântica de pathfinding
+   embutida. Deliberadamente decoupled de `ouroboros.roguelite.generation`
+   (`TILE_DTYPE`/`TileType`) — agnóstico de gênero.
+2. **`GravitySystem`/`TileCollisionSystem`** (novos, `ouroboros/core/
+   systems/`): gravidade trivial (soma numa pool inteira, sem intersecção)
+   + resolução AABB-vs-grade-sólida por eixo (X depois Y, evita pegar
+   quina na diagonal — usa `prev_y` reconstruído pra resolver X), expondo
+   `is_grounded(entity_index)` via scratch pré-alocado (mesmo idioma de
+   `JudgmentSystem._processed_scratch`). **Ordem de registro obrigatória**:
+   `PhysicsSystem` → `TileCollisionSystem` → `GravitySystem` — é também o
+   que faz `grounded` se auto-sustentar a cada frame em repouso (gravidade
+   reintroduz uma velocidade Y residual mínima antes do frame terminar, o
+   próximo frame a resolve de novo). `CompositionRoot.build()`/
+   `build_world()` ganharam `tile_grid`/`gravity_y` opcionais (mesmo
+   espírito de `spatial_grid` — `None` preserva 100% o comportamento de
+   sempre) — nenhum script de composição de produto precisa de acesso
+   direto a `MemoryManager` bruto, só `world.get_pool(...)`.
+3. **`games/platformer/`**: nível ASCII hardcoded (`level.py`, valida que o
+   ponto de spawn não cai numa célula sólida — falha na composição, nunca
+   silenciosamente em runtime), jogador com corrida+pulo (`PlayerRunSystem`/
+   `PlayerJumpSystem`, este último só permite pular com `is_grounded()`),
+   sem inimigos/pontuação.
 
-Fora de escopo: rampas, plataformas móveis, drop-through, formato de nível
-data-driven.
+Achados reais da crítica (incorporados antes de implementar): validação
+explícita de que `hitbox.half_width/half_height <= cell_size/2` (o algoritmo
+v1 só amostra a borda de avanço, uma hitbox maior violaria isso
+silenciosamente); `intersect_entity_indices` já é variádico (não precisou
+compor duas chamadas); e o achado mais importante — `GameLoop.run()` nunca
+limitava `delta_time`, o que **antes do M12 só degradava detecção por um
+frame, mas a partir da primeira colisão real contra geometria estática vira
+"atravessar o chão pra sempre"** num pico de tempo real (janela arrastada,
+pausa de GC) — corrigido com `MAX_DELTA_TIME_SECONDS = 0.1` em
+`ouroboros/bootstrap/game_loop.py`. Achado real dos MEUS PRÓPRIOS testes
+(não da crítica): o viés de epsilon na borda de avanço estava na direção
+errada — subtraía epsilon em vez de somar, apagando exatamente o afundamento
+marginal que o cenário de repouso contínuo precisa detectar a cada frame.
+
+Verificado: suite completa (403 testes, incluindo `test_grid2d.py`,
+`test_gravity_system.py`, `test_tile_collision_system.py`,
+`test_game_loop_delta_time_clamp.py`, `test_platformer_composition_headless.py`
+novos) + `lint-imports` (3 kept, 0 broken) + verificação manual headless
+(queda livre, corrida esquerda/direita, pulo só no chão, assentamento sobre
+o chão a partir do spawn).
+
+Fora de escopo (deferido): rampas, plataformas móveis, drop-through de
+plataforma de mão única, hitbox maior que uma célula, formato de nível
+data-driven (1 nível hardcoded não justifica um pipeline ainda).
 
 ### M13 — Turn-based Tactics: grid + pathfinding + turno `[promove ModifierStack]`
 
@@ -357,7 +394,7 @@ existe hoje — dívida técnica registrada, não resolvida aqui).
 ## Ordem e dependências (Fase 3)
 
 ```
-M12 (Platformer -- autocontido, decide o padrão de sistema opt-in)
+M12 (Platformer -- autocontido, decide o padrão de sistema opt-in -- concluído)
   │
 M13 (Tactics -- promove ModifierStack, único marco que mexe no Roguelite)
   │

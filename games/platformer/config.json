@@ -1,0 +1,8 @@
+{
+  "window_width": 640,
+  "window_height": 360,
+  "window_title": "OuroborosEngine -- Platformer (vertical slice)",
+  "entity_capacity": 256,
+  "difficulty_path": "data/difficulties/platformer/basic.json",
+  "input_bindings_path": "data/input_bindings/platformer_keyboard.json"
+}
