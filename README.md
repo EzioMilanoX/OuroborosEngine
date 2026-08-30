@@ -2,8 +2,11 @@
 
 Engine hibrida, orientada a dados (data-oriented) e Zero-GC no gameplay,
 escrita em Python. Nasceu como base para dois produtos —Roguelite e Jogo
-Musical— e teve seu nucleo ECS provado por um terceiro, o port do BulletHell
-(projeto irmao em `../BulletHell`, nao versionado neste repositorio).
+Musical— teve seu nucleo ECS provado por um terceiro, o port do BulletHell
+(projeto irmao em `../BulletHell`, nao versionado neste repositorio), e desde
+entao ganhou mais tres vertical slices (Platformer, Turn-based Tactics, Card
+Game) provando capacidades genericas novas — colisao contra tiles,
+grid/pathfinding/turno, e um modelo de dados sem ECS.
 
 - **Roguelite** (`games/roguelite/`) — geracao procedural de masmorra
   (`DungeonGenerator`/`StrictRandom`, seed determinístico), inimigos que
@@ -52,7 +55,9 @@ Musical— e teve seu nucleo ECS provado por um terceiro, o port do BulletHell
 | 3 — Roguelite (Procedural) | `ouroboros.roguelite` + `games.roguelite` | vertical slice jogavel |
 | 4 — Pipeline de IA (Jogo Musical) | `ouroboros.rhythm` + `games.rhythm_game` | vertical slice jogavel |
 | 5 — Testes Headless | `tests/` | suite completa, roda em CI |
-| 6 — Novos generos (Fase 3: Platformer/Tactics/Card Game) | `ouroboros.core.grid2d`/`ouroboros.tactics`/`ouroboros.cardgame` + `games.platformer`/`games.tactics`/`games.card_game` | 3 vertical slices jogaveis |
+| 6 — Platformer (colisao de tiles) | `ouroboros.core.grid2d` + `games.platformer` | vertical slice jogavel |
+| 7 — Turn-based Tactics (grid/pathfinding/turno) | `ouroboros.tactics` + `games.tactics` | vertical slice jogavel |
+| 8 — Card Game (cartas/zonas/efeitos, sem ECS) | `ouroboros.cardgame` + `games.card_game` | vertical slice jogavel |
 
 ## Status
 
