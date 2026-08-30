@@ -1,0 +1,5 @@
+{
+  "id": "tactics_unit",
+  "pools": ["transform", "sprite", "tactics_unit"],
+  "_nota": "initial_values nao e aplicado por ArchetypeLoader (mesmo gap ja documentado no Roguelite/Jogo Musical/Platformer) -- games/tactics/composition.py grava os valores manualmente apos world.create_entity."
+}

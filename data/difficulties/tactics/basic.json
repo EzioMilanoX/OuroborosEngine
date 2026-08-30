@@ -1,0 +1,4 @@
+{
+  "name": "basic",
+  "_nota": "EngineConfig.difficulty_path exige um arquivo valido -- Tactics nao tem conceito de dificuldade no v1 (roster fixo hardcoded), este arquivo existe so pra satisfazer o campo obrigatorio, nunca e lido por games/tactics/composition.py. Mesmo debito ja documentado em outros produtos (ver ROADMAP)."
+}

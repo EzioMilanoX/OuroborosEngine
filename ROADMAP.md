@@ -354,22 +354,63 @@ Fora de escopo (deferido): rampas, plataformas móveis, drop-through de
 plataforma de mão única, hitbox maior que uma célula, formato de nível
 data-driven (1 nível hardcoded não justifica um pipeline ainda).
 
-### M13 — Turn-based Tactics: grid + pathfinding + turno `[promove ModifierStack]`
+### M13 — Turn-based Tactics: grid + pathfinding + turno `[promove ModifierStack]` — concluído
 
-1. `ouroboros.tactics` (pacote novo, irmão de `roguelite`/`rhythm`):
-   `BattlefieldGrid` (terreno + custo de movimento + ocupação reconstruível
-   por frame), `pathfinding.py` (A*, alcançáveis-com-orçamento, linha de
-   visão), `turn_queue.py` (`TurnQueue`, bookkeeping puro de iniciativa).
-2. Fase de turno via uma única `TacticsBattleScene(IScene)` com estado
-   interno (mesmo idioma de `WizardScene`/`MenuScene`), não um scheduler
-   genérico novo.
-3. **Promove `ModifierStack`**: `ouroboros/roguelite/modifiers/*` →
-   `ouroboros/core/modifiers/*` (mesmo código — Tactics é o 2º consumidor
-   real), atualiza os ~6 chamadores reais no Roguelite + 2 testes.
-4. `games/tactics/`: batalha ~10x8 hardcoded, mover+atacar, IA trivial.
+1. **`ouroboros.tactics`** (pacote novo, irmão de `roguelite`/`rhythm` —
+   `import_linter_contracts.ini` atualizado nos dois contratos relevantes
+   NESTE marco, não adiado pro M14 como o stub original sugeria): 
+   `BattlefieldGrid` (terreno estático + ocupação RECONSTRUÍDA por inteiro a
+   cada chamada — nunca um patch incremental, mesmo idioma de
+   `UniformGrid.rebuild`; deliberadamente NÃO reusa `Grid2D` do M12 — uma é
+   contínua/testada todo frame, a outra é consultada por evento discreto,
+   as semânticas divergem demais pra convergir sem indireção artificial),
+   `pathfinding.py` (`find_path` A* ortogonal, `reachable_cells`
+   Dijkstra-com-orçamento, `has_line_of_sight` Bresenham com regra
+   explícita de canto — tudo fora do hot-path, scratch Python/heapq
+   aceitável), `turn_queue.py` (`TurnQueue`, bookkeeping puro de
+   iniciativa, sem conceito de fase/UI).
+2. **`TacticsBattleScene`** (`games/tactics/battle_scene.py`): cena única
+   com fase implícita (de quem é `TurnQueue.current_entity_index` agora),
+   mesmo idioma de `WizardScene`/`MenuScene` — lê input direto, nunca
+   depende de `ISystem` (nunca chama `world.step()`, já que não há nada
+   pra simular por frame). Guarda uma `GameplayScene` só pra delegar
+   `render()` a ela (mesmo idioma de `PauseScene`).
+3. **Promoveu `ModifierStack`**: `ouroboros/roguelite/modifiers/*` →
+   `ouroboros/core/modifiers/*` (mesmo código, Tactics é o 2º consumidor
+   real) + `ModifierApplicationSystem` (já 100% genérico) também
+   promovido — atualizados os ~6 chamadores reais no Roguelite + 3 testes
+   (2 deles movidos pra `tests/core/`).
+4. **`games/tactics/`**: batalha 10x8 hardcoded (muro com brecha + 2
+   células `DIFFICULT`), Warrior+Scout (jogador) vs. 2 Grunts (inimigo),
+   atributos ataque/defesa/alcance num ÚNICO `ModifierStack` compartilhado
+   (mesmo idioma do sistema de arma do Roguelite), iniciativa
+   ENTRELAÇADA entre times (prova que o sort de `TurnQueue` importa de
+   verdade). IA trivial: mira uma célula ADJACENTE ao inimigo mais
+   próximo (nunca a célula dele — corretamente ocupada/inalcançável),
+   anda até o orçamento acabar, ataca se ficar adjacente.
 
-Fora de escopo: fog of war, turno em rede, altura de terreno, diagonal,
-RNG determinístico estilo `StrictRandom`, loader data-driven de mapa.
+Achado real e crítico da crítica: `World.destroy_entity()` é DIFERIDO (só
+`World.flush()` desanexa de verdade) — como `TacticsBattleScene` nunca
+chama `world.step()`, uma unidade morta ficaria como ocupante fantasma da
+própria célula PRA SEMPRE sem um `world.flush()` explícito logo após
+`destroy_entity()`, antes de reconstruir a ocupação. 2 bugs reais achados
+pelos MEUS PRÓPRIOS testes (a crítica não pegou): `BattlefieldGrid.__init__`
+deixava `move_cost` em `0.0` (default de `np.zeros`) em vez de `1.0`,
+quebrando a admissibilidade da heurística de Manhattan silenciosamente;
+`TurnQueue.build` ordenava ascendente-estável e invertia o resultado pra
+simular descendente — inverter um sort estável inverte o desempate
+TAMBÉM (o oposto do desejado).
+
+Verificado: 40 testes novos de engine (`tests/tactics/`) + 8 de composição
+(`tests/games/test_tactics_composition_headless.py`, incluindo uma batalha
+completa jogada do início ao fim sem crashar) + suite completa (451
+testes) + `lint-imports` (3 kept, 0 broken) + sessão manual headless
+confirmando movimento/bloqueio por parede/ocupação/ataque/morte/vitória de
+ponta a ponta.
+
+Fora de escopo (deferido): fog of war, turno em rede, altura de terreno,
+movimento diagonal, passar por aliado no pathing, RNG determinístico
+estilo `StrictRandom`, loader data-driven de mapa de batalha.
 
 ### M14 — Card Game: cartas + zonas + efeitos `[reusa ModifierStack, sem ECS]`
 
@@ -383,8 +424,9 @@ pro estado de carta/zona/efeito.
    `random.Random` puro pro shuffle); vocabulário fechado de ~5 operações de
    efeito (buff via `ModifierStack` do core já promovido no M13).
 2. Turno via uma única `MatchScene(IScene)` com fase interna.
-3. `import_linter_contracts.ini`: `ouroboros.tactics`/`ouroboros.cardgame`
-   entram no contrato 1 e na camada de produtos do contrato 3.
+3. `import_linter_contracts.ini`: `ouroboros.cardgame` entra no contrato 1 e
+   na camada de produtos do contrato 3 (`ouroboros.tactics` já entrou no
+   M13, junto da criação do próprio pacote — não adiado um marco depois).
 4. `games/card_game/`: 1 baralho, humano vs. oponente estático/sem IA.
 
 Fora de escopo: habilidades gatilho, bloqueio, resposta em pilha, scripting
@@ -396,7 +438,7 @@ existe hoje — dívida técnica registrada, não resolvida aqui).
 ```
 M12 (Platformer -- autocontido, decide o padrão de sistema opt-in -- concluído)
   │
-M13 (Tactics -- promove ModifierStack, único marco que mexe no Roguelite)
+M13 (Tactics -- promove ModifierStack, único marco que mexe no Roguelite -- concluído)
   │
 M14 (Card Game -- reusa o ModifierStack já promovido)
 ```

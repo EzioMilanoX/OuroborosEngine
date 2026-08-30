@@ -1,0 +1,5 @@
+{
+  "id": "terrain_backdrop",
+  "pools": ["transform", "sprite"],
+  "_nota": "So visual (uma por celula BLOCKED/DIFFICULT) -- a logica de verdade consulta BattlefieldGrid.terrain_type_at, nunca essas entidades."
+}
