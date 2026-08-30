@@ -287,3 +287,84 @@ deixasse o código. M11 não dependia de nada além do que já existia —
 - Reorganizar o roster de bosses do Decálogo do BulletHell pros modos normais.
 - Um segundo backend de renderização de verdade — o item do M9 é só limpeza
   do placeholder vazio, não um novo backend.
+
+---
+
+## Fase 3 — preparar a engine para novos gêneros (M12–M14)
+
+A engine hoje prova 3 gêneros (Roguelite, Jogo Musical, BulletHell-como-
+shmup). Auditoria contra o código real (3 agentes de design, um por gênero)
+confirmou que faltam capacidades genéricas de verdade pros próximos 3 gêneros
+mais próximos: nenhuma colisão contra geometria estática (tiles), nenhum
+pathfinding, nenhum scheduler de turno, nenhum sistema de save/load em lugar
+nenhum do repo. Cada marco segue o mesmo ciclo de sempre (pesquisa → design →
+crítica → implementação → testes → `lint-imports` → smoke → reportar) e ganha
+um jogo de demonstração mínimo pra provar o primitivo contra um produto real
+— mesmo padrão que achou bugs reais em toda milestone anterior.
+
+### M12 — Platformer: colisão contra tiles `[mais autocontido]`
+
+1. `Grid2D` (`ouroboros/core/grid2d.py`): container puro de dados (array
+   denso tipado + conversão world↔cell), sem semântica de sólido/pathfinding.
+2. `GravitySystem`/`TileCollisionSystem` (novos, `ouroboros/core/systems/`):
+   gravidade trivial + resolução AABB-vs-grade-sólida por eixo (X depois Y),
+   reconstruindo a posição pré-movimento a partir do que `PhysicsSystem` já
+   integrou neste frame (não duplica Euler). Ordem de registro obrigatória:
+   `PhysicsSystem` → `TileCollisionSystem` → `GravitySystem`.
+3. `games/platformer/`: nível ASCII hardcoded, corrida+pulo, sem
+   inimigos/pontuação.
+
+Fora de escopo: rampas, plataformas móveis, drop-through, formato de nível
+data-driven.
+
+### M13 — Turn-based Tactics: grid + pathfinding + turno `[promove ModifierStack]`
+
+1. `ouroboros.tactics` (pacote novo, irmão de `roguelite`/`rhythm`):
+   `BattlefieldGrid` (terreno + custo de movimento + ocupação reconstruível
+   por frame), `pathfinding.py` (A*, alcançáveis-com-orçamento, linha de
+   visão), `turn_queue.py` (`TurnQueue`, bookkeeping puro de iniciativa).
+2. Fase de turno via uma única `TacticsBattleScene(IScene)` com estado
+   interno (mesmo idioma de `WizardScene`/`MenuScene`), não um scheduler
+   genérico novo.
+3. **Promove `ModifierStack`**: `ouroboros/roguelite/modifiers/*` →
+   `ouroboros/core/modifiers/*` (mesmo código — Tactics é o 2º consumidor
+   real), atualiza os ~6 chamadores reais no Roguelite + 2 testes.
+4. `games/tactics/`: batalha ~10x8 hardcoded, mover+atacar, IA trivial.
+
+Fora de escopo: fog of war, turno em rede, altura de terreno, diagonal,
+RNG determinístico estilo `StrictRandom`, loader data-driven de mapa.
+
+### M14 — Card Game: cartas + zonas + efeitos `[reusa ModifierStack, sem ECS]`
+
+Volume de cartas em jogo (~60, mutado por evento de turno) é o oposto do
+que `ComponentPool`/`World.step()` otimizam — deliberadamente sem ECS/Zero-GC
+pro estado de carta/zona/efeito.
+
+1. `ouroboros.cardgame` (pacote novo): `CardLoader` (mesmo desenho de
+   validação/id estável de `WeaponLoader`, lendo `data/cards/*.json`);
+   `Zone`/`CardInstance` (listas Python puras — deck/mão/descarte/campo,
+   `random.Random` puro pro shuffle); vocabulário fechado de ~5 operações de
+   efeito (buff via `ModifierStack` do core já promovido no M13).
+2. Turno via uma única `MatchScene(IScene)` com fase interna.
+3. `import_linter_contracts.ini`: `ouroboros.tactics`/`ouroboros.cardgame`
+   entram no contrato 1 e na camada de produtos do contrato 3.
+4. `games/card_game/`: 1 baralho, humano vs. oponente estático/sem IA.
+
+Fora de escopo: habilidades gatilho, bloqueio, resposta em pilha, scripting
+arbitrário de carta, persistência de baralho entre sessões (nenhum save/load
+existe hoje — dívida técnica registrada, não resolvida aqui).
+
+## Ordem e dependências (Fase 3)
+
+```
+M12 (Platformer -- autocontido, decide o padrão de sistema opt-in)
+  │
+M13 (Tactics -- promove ModifierStack, único marco que mexe no Roguelite)
+  │
+M14 (Card Game -- reusa o ModifierStack já promovido)
+```
+
+Sequencial (decisão do usuário): M12 primeiro por ser o menor risco/escopo;
+M13 antes de M14 porque a promoção do `ModifierStack` (2º consumidor real)
+é o que permite o M14 reusá-lo em vez de duplicar o mesmo vocabulário de
+buff uma 3ª vez.
