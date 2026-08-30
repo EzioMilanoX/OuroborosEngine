@@ -1,0 +1,7 @@
+{
+  "id": "warrior",
+  "display_name": "Guerreiro",
+  "cost": 2,
+  "card_type": "creature",
+  "base_attack": 3
+}

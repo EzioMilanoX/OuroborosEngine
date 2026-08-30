@@ -1,0 +1,9 @@
+{
+  "id": "war_cry",
+  "display_name": "Grito de Guerra",
+  "cost": 2,
+  "card_type": "action",
+  "effects": [
+    {"op": "buff_stat", "args": {"attribute": "attack", "operation": "flat", "magnitude": 2}}
+  ]
+}

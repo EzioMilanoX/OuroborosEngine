@@ -1,0 +1,9 @@
+{
+  "id": "strike",
+  "display_name": "Investida",
+  "cost": 1,
+  "card_type": "action",
+  "effects": [
+    {"op": "damage_target", "args": {"amount": 3}}
+  ]
+}

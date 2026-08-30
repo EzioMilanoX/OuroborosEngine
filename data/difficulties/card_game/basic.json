@@ -1,0 +1,4 @@
+{
+  "name": "basic",
+  "_nota": "EngineConfig.difficulty_path exige um arquivo valido -- Card Game nao tem conceito de dificuldade no v1 (1 baralho fixo, oponente estatico), este arquivo existe so pra satisfazer o campo obrigatorio, nunca e lido por games/card_game/composition.py. Mesmo debito ja documentado em outros produtos (ver ROADMAP)."
+}

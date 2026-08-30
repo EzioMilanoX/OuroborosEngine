@@ -1,0 +1,9 @@
+{
+  "id": "inspiration",
+  "display_name": "Inspiracao",
+  "cost": 1,
+  "card_type": "action",
+  "effects": [
+    {"op": "draw_cards", "args": {"count": 2}}
+  ]
+}

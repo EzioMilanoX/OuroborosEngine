@@ -412,26 +412,82 @@ Fora de escopo (deferido): fog of war, turno em rede, altura de terreno,
 movimento diagonal, passar por aliado no pathing, RNG determinístico
 estilo `StrictRandom`, loader data-driven de mapa de batalha.
 
-### M14 — Card Game: cartas + zonas + efeitos `[reusa ModifierStack, sem ECS]`
+### M14 — Card Game: cartas + zonas + efeitos `[reusa ModifierStack, sem ECS]` — concluído
 
-Volume de cartas em jogo (~60, mutado por evento de turno) é o oposto do
-que `ComponentPool`/`World.step()` otimizam — deliberadamente sem ECS/Zero-GC
-pro estado de carta/zona/efeito.
+Volume de cartas em jogo (dezenas, mutado por evento de turno, não por
+frame) é o oposto do que `ComponentPool`/`World.step()` otimizam —
+deliberadamente sem ECS/Zero-GC pro estado de carta/zona/efeito: nenhuma
+entidade existe neste produto (nem `transform`/`sprite`), e `MatchScene`
+nunca chama `world.step()` (mesmo idioma de `MenuScene` — o `World`
+associado ao `GameLoop` é um placeholder genérico nunca consultado).
 
-1. `ouroboros.cardgame` (pacote novo): `CardLoader` (mesmo desenho de
-   validação/id estável de `WeaponLoader`, lendo `data/cards/*.json`);
-   `Zone`/`CardInstance` (listas Python puras — deck/mão/descarte/campo,
-   `random.Random` puro pro shuffle); vocabulário fechado de ~5 operações de
-   efeito (buff via `ModifierStack` do core já promovido no M13).
-2. Turno via uma única `MatchScene(IScene)` com fase interna.
-3. `import_linter_contracts.ini`: `ouroboros.cardgame` entra no contrato 1 e
-   na camada de produtos do contrato 3 (`ouroboros.tactics` já entrou no
-   M13, junto da criação do próprio pacote — não adiado um marco depois).
-4. `games/card_game/`: 1 baralho, humano vs. oponente estático/sem IA.
+1. **`ouroboros.cardgame`** (pacote novo, irmão de `roguelite`/`rhythm`/
+   `tactics`): `CardLoader` (mesmo desenho de validação/`stable_id_from_name`/
+   erro customizado de `WeaponLoader`, lendo `data/cards/*.json` — 7 cartas:
+   5 `ACTION` + 2 `CREATURE`); `Zone`/`CardInstance` (listas Python puras —
+   deck/mão/descarte/campo por jogador, `random.Random` injetável pro
+   shuffle, não `StrictRandom`); vocabulário fechado de 5 `EffectOp`
+   (`DAMAGE_TARGET`/`HEAL_TARGET`/`DRAW_CARDS`/`BUFF_STAT`/`GAIN_RESOURCE`,
+   alvo de cada um FIXO/implícito — sem seleção de alvo pelo jogador),
+   resolvidos por `apply_effect` (dispatcher plano). `BUFF_STAT` é o
+   primeiro consumidor real a de fato empurrar (`push()`) um modificador no
+   `ModifierStack` promovido no M13 (Tactics só o registrava, nunca
+   empurrava) — `source_id` sempre `CardInstance.instance_id` (nunca
+   `card_def_id`, o template compartilhado por cópias da mesma carta).
+2. **Criaturas no v1 têm APENAS `base_attack`** (sem HP/defesa própria):
+   nada as danifica depois de jogadas (sem combate criatura-vs-criatura/
+   bloqueio, ver "fora de escopo"), então são fontes permanentes de ataque
+   que disparam a cada fase de combate — um campo de HP/defesa seria nunca
+   lido.
+3. **`MatchScene(IScene)`** (`games/card_game/match_scene.py`): ciclo
+   contínuo `DRAW→MAIN→COMBAT→END→DRAW...` de um ÚNICO lado real (não há
+   "turno do oponente" — o oponente é estático/sem IA, nunca joga carta
+   nenhuma). Ação de entrada de fase e transição pra próxima são atômicas
+   dentro da MESMA chamada de `update()` que primeiro observa a fase
+   (nunca há um frame onde uma fase foi "entrada" mas ainda não
+   processada — evita reexecutar `_run_draw_phase`/`_run_combat_phase`
+   duas vezes por ciclo de turno).
+4. **`import_linter_contracts.ini`**: `ouroboros.cardgame` adicionado ao
+   contrato 1 (`source_modules`) e à camada de produtos do contrato 3
+   (`ouroboros.roguelite | ouroboros.rhythm | ouroboros.tactics |
+   ouroboros.cardgame`).
+5. **`games/card_game/`**: 1 baralho hardcoded (15 cópias, 7 cartas
+   distintas), mão de abertura de 3, jogador (HP 20) vs. oponente
+   estático (HP 15, sem deck/mão/campo — apenas um alvo de HP).
 
-Fora de escopo: habilidades gatilho, bloqueio, resposta em pilha, scripting
-arbitrário de carta, persistência de baralho entre sessões (nenhum save/load
-existe hoje — dívida técnica registrada, não resolvida aqui).
+Achados reais da crítica (incorporados antes de implementar):
+`attribute_capacity`/`entry_capacity` do `ModifierStack` da partida têm que
+ser dimensionados a partir da COMPOSIÇÃO REAL do baralho (cópias de
+`CREATURE`/`BUFF_STAT`, não a contagem de `CardDefinition` distintas) — como
+nenhuma criatura é removida do campo e não existe efeito de remoção de buff
+no vocabulário do v1, atributos e entradas se acumulam pra sempre ao longo
+de uma partida; cursor de mão precisa ser clampado após TODA mutação
+(compra ou jogar carta) e a navegação precisa ser protegida contra mão
+vazia — `MenuScene` (linhas imutáveis) não cobria esse caso, já que a mão
+de `MatchScene` cresce/encolhe ao vivo; `CardLoader` precisa validar o
+CONTEÚDO dos argumentos de cada efeito (não só o nome da operação) — um
+`operation`/`attribute` inválido em `buff_stat` só surgiria em runtime, no
+meio de uma partida, sem essa validação na carga. Achado real dos MEUS
+PRÓPRIOS testes (não da crítica): jogar a carta no ÚLTIMO índice da mão
+deixava o cursor obsoleto (`== len(hand)` após a remoção) — corrigido
+clampando o cursor em toda mutação de mão, não só na compra.
+
+Verificado: 38 testes novos (`tests/cardgame/` — `CardLoader`/`Zone`/
+`apply_effect`, incluindo o teste que prova que 2 cópias da mesma carta
+nunca se afetam mutuamente via buff; `tests/games/
+test_card_game_match_scene.py` — mão vazia, cursor obsoleto, mana
+insuficiente, fase atômica; `tests/games/
+test_card_game_composition_headless.py`, incluindo uma partida completa
+jogada do início ao fim sem crashar) + suite completa (501 testes, só as 12
+falhas pré-existentes e não relacionadas de `numba`/DLL do Windows) +
+`lint-imports` (3 kept, 0 broken) + sessão manual headless confirmando
+compra/custo-mana/jogar carta/resolver efeito/combate/vitória de ponta a
+ponta.
+
+Fora de escopo (deferido): habilidades gatilho, combate criatura-vs-criatura
+com bloqueio, resposta em pilha, scripting arbitrário de carta, persistência
+de baralho entre sessões (nenhum save/load existe hoje em lugar nenhum da
+engine — dívida técnica registrada, não resolvida aqui).
 
 ## Ordem e dependências (Fase 3)
 
@@ -440,10 +496,10 @@ M12 (Platformer -- autocontido, decide o padrão de sistema opt-in -- concluído
   │
 M13 (Tactics -- promove ModifierStack, único marco que mexe no Roguelite -- concluído)
   │
-M14 (Card Game -- reusa o ModifierStack já promovido)
+M14 (Card Game -- reusa o ModifierStack já promovido -- concluído)
 ```
 
 Sequencial (decisão do usuário): M12 primeiro por ser o menor risco/escopo;
 M13 antes de M14 porque a promoção do `ModifierStack` (2º consumidor real)
 é o que permite o M14 reusá-lo em vez de duplicar o mesmo vocabulário de
-buff uma 3ª vez.
+buff uma 3ª vez. **Fase 3 (M12–M14) concluída inteira.**

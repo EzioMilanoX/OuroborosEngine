@@ -1,0 +1,7 @@
+{
+  "id": "archer",
+  "display_name": "Arqueiro",
+  "cost": 3,
+  "card_type": "creature",
+  "base_attack": 4
+}

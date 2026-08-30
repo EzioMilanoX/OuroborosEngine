@@ -1,0 +1,9 @@
+{
+  "id": "fireball",
+  "display_name": "Bola de Fogo",
+  "cost": 3,
+  "card_type": "action",
+  "effects": [
+    {"op": "damage_target", "args": {"amount": 6}}
+  ]
+}

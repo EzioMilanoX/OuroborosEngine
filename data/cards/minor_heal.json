@@ -1,0 +1,9 @@
+{
+  "id": "minor_heal",
+  "display_name": "Cura Menor",
+  "cost": 2,
+  "card_type": "action",
+  "effects": [
+    {"op": "heal_target", "args": {"amount": 5}}
+  ]
+}

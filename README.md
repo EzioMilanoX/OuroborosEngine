@@ -17,6 +17,18 @@ Musical— e teve seu nucleo ECS provado por um terceiro, o port do BulletHell
   (`MenuScene`, catalogo com 2 musicas), 4 lanes, julgamento de notas com
   SFX + particula no acerto + screen shake no erro, textura real de nota,
   pausa real. Rodar com `python -m games.rhythm_game.main`.
+- **Platformer** (`games/platformer/`) — nivel ASCII hardcoded, colisao real
+  contra tiles (`Grid2D`/`TileCollisionSystem`, resolucao por eixo) +
+  gravidade opt-in (`GravitySystem`), corrida e pulo (so no chao). Rodar
+  com `python -m games.platformer.main`.
+- **Turn-based Tactics** (`games/tactics/`) — batalha em grade
+  (`ouroboros.tactics`: `BattlefieldGrid`, A*/alcancaveis/linha de visao,
+  `TurnQueue` por iniciativa), 2 unidades por time, mover/atacar/IA
+  trivial. Rodar com `python -m games.tactics.main`.
+- **Card Game** (`games/card_game/`) — baralho hardcoded (`ouroboros.cardgame`:
+  `CardLoader`/`Zone`/vocabulario de efeitos, sem ECS), turno
+  compra→principal→combate→fim, jogador vs. oponente estatico. Rodar com
+  `python -m games.card_game.main`.
 
 ## A Constituicao da Engine
 
@@ -40,6 +52,7 @@ Musical— e teve seu nucleo ECS provado por um terceiro, o port do BulletHell
 | 3 — Roguelite (Procedural) | `ouroboros.roguelite` + `games.roguelite` | vertical slice jogavel |
 | 4 — Pipeline de IA (Jogo Musical) | `ouroboros.rhythm` + `games.rhythm_game` | vertical slice jogavel |
 | 5 — Testes Headless | `tests/` | suite completa, roda em CI |
+| 6 — Novos generos (Fase 3: Platformer/Tactics/Card Game) | `ouroboros.core.grid2d`/`ouroboros.tactics`/`ouroboros.cardgame` + `games.platformer`/`games.tactics`/`games.card_game` | 3 vertical slices jogaveis |
 
 ## Status
 
@@ -56,8 +69,13 @@ pra funcionar de verdade + limpeza do placeholder vazio de um backend Godot
 contagem de inimigos por sala (M10); Jogo Musical ganhou um `MenuScene` real
 de selecao de musica/dificuldade, uma segunda musica gerada pelo pipeline de
 IA (`--profile hybrid`, com diversidade real de `"layer"`), e adotou
-particulas/screen shake/textura real no feedback de acerto (M11). Nenhum
-item planejado restante -- detalhes completos em `ROADMAP.md`.
+particulas/screen shake/textura real no feedback de acerto (M11). A Fase 3
+(M12-M14) tambem esta concluida: colisao real contra tiles + gravidade
+opt-in provadas por um Platformer (M12); grid/pathfinding/turno + promocao
+do `ModifierStack` pro nucleo, provados por um Turn-based Tactics (M13);
+cartas/zonas/efeitos reusando o `ModifierStack` ja promovido, sem ECS,
+provados por um Card Game (M14). Nenhum item planejado restante -- detalhes
+completos em `ROADMAP.md`.
 
 ## Rodando localmente
 
