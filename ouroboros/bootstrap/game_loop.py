@@ -15,6 +15,20 @@ from ouroboros.interfaces.input_provider import IInputProvider
 from ouroboros.interfaces.renderer import IRenderer
 
 
+MAX_DELTA_TIME_SECONDS: float = 0.1
+"""Teto absoluto pro `delta_time` computado por `run()` (ROADMAP M12 --
+achado da critica: um pico de tempo real entre dois frames -- janela
+arrastada, pausa de GC, stall de disco, tudo rotineiro no Windows -- geraria
+um `delta_time` gigante sem isso, e qualquer entidade com `PhysicsSystem`
+poderia atravessar geometria solida num unico passo de integracao, sem
+`TileCollisionSystem` nunca ver a sobreposicao intermediaria. Antes do M12
+(colisao real contra tiles) isso so degradava deteccao de um frame; a partir
+dele vira "atravessar o chao pra sempre" -- um bug de correcao dura, nao so
+cosmetico. 0.1s (chao de ~10fps) e generoso o bastante pra nao truncar um
+frame real lento, mas pequeno o bastante pra nunca mover uma entidade mais
+de uma fracao de celula tipica num unico passo."""
+
+
 class GameLoop:
     """
     Laco de frame que conecta `IInputProvider`, `World` e `IRenderer` --
@@ -177,6 +191,8 @@ class GameLoop:
         Timing via `time.perf_counter()` (stdlib) -- nunca
         `pygame.time.Clock`, para que `ouroboros.bootstrap` continue sem
         importar `pygame` diretamente (Regra 2 da Constituicao).
+        `delta_time` e sempre limitado a `MAX_DELTA_TIME_SECONDS` (ver
+        docstring do modulo).
         """
         self._running = True
         min_frame_seconds = 1.0 / self._target_fps if self._target_fps > 0 else 0.0
@@ -186,7 +202,7 @@ class GameLoop:
             self._input_provider.poll()
 
             now = time.perf_counter()
-            delta_time = now - last_time
+            delta_time = min(now - last_time, MAX_DELTA_TIME_SECONDS)
             last_time = now
 
             self.tick_once(delta_time)
