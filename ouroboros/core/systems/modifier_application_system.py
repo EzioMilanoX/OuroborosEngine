@@ -7,9 +7,9 @@ from __future__ import annotations
 
 from typing import Tuple
 
+from ouroboros.core.modifiers.modifier_stack import ModifierStack
 from ouroboros.core.systems.base_system import ISystem
 from ouroboros.core.world import World
-from ouroboros.roguelite.modifiers.modifier_stack import ModifierStack
 
 
 class ModifierApplicationSystem(ISystem):

@@ -11,12 +11,12 @@ from pathlib import Path
 import pytest
 
 from ouroboros.core.memory.component_pool import ComponentPool
+from ouroboros.core.modifiers.modifier_stack import ModifierStack
+from ouroboros.core.modifiers.schemas import ModifierOperation
 from ouroboros.core.stable_id import stable_id_from_name
 from ouroboros.roguelite.items.inventory_pool import InventoryPool
 from ouroboros.roguelite.items.schemas import INVENTORY_SLOT_DTYPE
 from ouroboros.roguelite.items.weapon_loader import WeaponDefinitionError, WeaponLoader
-from ouroboros.roguelite.modifiers.modifier_stack import ModifierStack
-from ouroboros.roguelite.modifiers.schemas import ModifierOperation
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 REAL_WEAPONS_DIR = REPO_ROOT / "data" / "weapons"

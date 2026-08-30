@@ -13,8 +13,10 @@ from ouroboros.bootstrap.engine_config import EngineConfig
 from ouroboros.bootstrap.game_loop import GameLoop
 from ouroboros.bootstrap.scene import GameplayScene
 from ouroboros.core.memory.handles import unpack_index
+from ouroboros.core.modifiers.modifier_stack import ModifierStack
 from ouroboros.core.stable_id import stable_id_from_name
 from ouroboros.core.systems.collision_system import CollisionSystem
+from ouroboros.core.systems.modifier_application_system import ModifierApplicationSystem
 from ouroboros.core.systems.spatial_grid import UniformGrid
 from ouroboros.core.world import World
 from ouroboros.interfaces.renderer import SHAPE_CIRCLE, SHAPE_RECT
@@ -31,10 +33,8 @@ from ouroboros.roguelite.loaders.room_type_loader import (
     RoomTypeLoader,
     RoomTypeTintRGBA,
 )
-from ouroboros.roguelite.modifiers.modifier_stack import ModifierStack
 from ouroboros.roguelite.systems.damage_system import DamageOnCollisionSystem
 from ouroboros.roguelite.systems.dungeon_streaming_system import DungeonStreamingSystem
-from ouroboros.roguelite.systems.modifier_application_system import ModifierApplicationSystem
 
 from games.roguelite.end_scene import EndScene
 from games.roguelite.hud import build_hud_callback

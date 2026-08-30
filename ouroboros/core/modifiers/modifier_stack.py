@@ -9,14 +9,14 @@ from typing import List
 
 import numpy as np
 
-from ouroboros.roguelite.modifiers.operations import (
+from ouroboros.core.modifiers.operations import (
     accumulate_entries_into,
     apply_percent_additive,
     apply_percent_multiplicative,
     clamp,
     sum_flat,
 )
-from ouroboros.roguelite.modifiers.schemas import (
+from ouroboros.core.modifiers.schemas import (
     MODIFIABLE_ATTRIBUTE_DTYPE,
     MODIFIER_ENTRY_DTYPE,
     ModifierOperation,
@@ -163,7 +163,7 @@ class ModifierStack:
     def recompute_all(self) -> None:
         """Recalcula `final_value` de TODOS os atributos registrados a
         partir das entradas ativas, in-place, usando exclusivamente as
-        funcoes puras de `ouroboros.roguelite.modifiers.operations` com
+        funcoes puras de `ouroboros.core.modifiers.operations` com
         `out=` apontando para buffers ja pre-alocados.
 
         Ordem fixa de composicao: `accumulate_entries_into` ->

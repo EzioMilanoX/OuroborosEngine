@@ -11,11 +11,11 @@ from typing import Dict, List, Optional
 
 import numpy as np
 
+from ouroboros.core.modifiers.modifier_stack import ModifierStack
+from ouroboros.core.modifiers.schemas import ModifierOperation
 from ouroboros.core.stable_id import stable_id_from_name
 from ouroboros.roguelite.items.inventory_pool import InventoryPool
 from ouroboros.roguelite.items.schemas import INVENTORY_SLOT_DTYPE, WEAPON_DTYPE
-from ouroboros.roguelite.modifiers.modifier_stack import ModifierStack
-from ouroboros.roguelite.modifiers.schemas import ModifierOperation
 
 _REQUIRED_FIELDS = ("id", "display_name", "base_damage", "fire_rate_per_second", "projectile_speed")
 

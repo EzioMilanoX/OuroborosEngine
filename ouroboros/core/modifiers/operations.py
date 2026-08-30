@@ -9,7 +9,7 @@ from typing import Optional
 
 import numpy as np
 
-from ouroboros.roguelite.modifiers.schemas import ModifierOperation
+from ouroboros.core.modifiers.schemas import ModifierOperation
 
 
 def sum_flat(base: np.ndarray, flat_sum: np.ndarray, out: Optional[np.ndarray] = None) -> np.ndarray:

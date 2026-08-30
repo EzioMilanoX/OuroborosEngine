@@ -8,10 +8,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Tuple
 
 from ouroboros.core.memory.handles import unpack_index
+from ouroboros.core.modifiers.modifier_stack import ModifierStack
 from ouroboros.core.systems.base_system import ISystem
 from ouroboros.interfaces.input_provider import IInputProvider
 from ouroboros.roguelite.combat.schemas import EntityKind
-from ouroboros.roguelite.modifiers.modifier_stack import ModifierStack
 
 if TYPE_CHECKING:
     from ouroboros.core.world import World

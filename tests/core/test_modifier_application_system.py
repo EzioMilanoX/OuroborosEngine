@@ -2,14 +2,14 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-"""Testes de ModifierApplicationSystem (Pilar 3): recompute_all em varias stacks, na ordem certa."""
+"""Testes de ModifierApplicationSystem (Pilar 1): recompute_all em varias stacks, na ordem certa."""
 from __future__ import annotations
 
 import pytest
 
-from ouroboros.roguelite.modifiers.modifier_stack import ModifierStack
-from ouroboros.roguelite.modifiers.schemas import ModifierOperation
-from ouroboros.roguelite.systems.modifier_application_system import ModifierApplicationSystem
+from ouroboros.core.modifiers.modifier_stack import ModifierStack
+from ouroboros.core.modifiers.schemas import ModifierOperation
+from ouroboros.core.systems.modifier_application_system import ModifierApplicationSystem
 
 
 class _TrackedModifierStack(ModifierStack):
