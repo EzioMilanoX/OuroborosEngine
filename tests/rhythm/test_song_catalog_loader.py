@@ -27,6 +27,26 @@ def test_load_all_reads_the_real_demo_track_entry() -> None:
     assert demo.audio_path == REPO_ROOT / "games" / "rhythm_game" / "assets" / "audio" / "demo_track.wav"
     assert demo.beatmap_path.is_file()
     assert demo.audio_path.is_file()
+    assert demo.mode == "lane"  # ROADMAP M15: campo opcional, ausente no JSON -- default "lane"
+
+
+def test_load_all_reads_the_real_demo_track_osu_entry() -> None:
+    """ROADMAP M15: 3a musica real do catalogo, modo Osu! (circulos/sliders)."""
+    loader = SongCatalogLoader(REAL_SONGS_DIR, repo_root=REPO_ROOT)
+    songs = loader.load_all()
+
+    osu_song = next(song for song in songs if song.track_id == "demo_track_osu")
+    assert osu_song.mode == "osu"
+    assert osu_song.beatmap_path.is_file()
+    assert osu_song.audio_path.is_file()
+
+
+def test_load_all_raises_on_unknown_mode(tmp_path) -> None:
+    _write_song(tmp_path, "broken.json", {**_VALID_ENTRY, "mode": "not_a_real_mode"})
+    loader = SongCatalogLoader(tmp_path, repo_root=tmp_path)
+
+    with pytest.raises(SongCatalogError):
+        loader.load_all()
 
 
 def test_load_all_reads_the_real_second_track_entry() -> None:

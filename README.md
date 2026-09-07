@@ -17,9 +17,11 @@ grid/pathfinding/turno, e um modelo de dados sem ECS.
   (inclusive multi-camada via Perfis de Extracao, tag `"layer"`), consumido
   em runtime por um `RhythmSpawnerSystem` sincronizado a um `IAudioClock`
   (nunca a delta-time); menu real de selecao de musica/dificuldade
-  (`MenuScene`, catalogo com 2 musicas), 4 lanes, julgamento de notas com
+  (`MenuScene`, catalogo com 3 musicas), 4 lanes, julgamento de notas com
   SFX + particula no acerto + screen shake no erro, textura real de nota,
-  pausa real. Rodar com `python -m games.rhythm_game.main`.
+  pausa real. Ganhou tambem um **modo Osu!** (circulos/sliders em posicao
+  arbitraria da tela, cursor+clique, gerados deterministicamente a partir
+  dos onsets ja extraidos). Rodar com `python -m games.rhythm_game.main`.
 - **Platformer** (`games/platformer/`) — nivel ASCII hardcoded, colisao real
   contra tiles (`Grid2D`/`TileCollisionSystem`, resolucao por eixo) +
   gravidade opt-in (`GravitySystem`), corrida e pulo (so no chao). Rodar
@@ -79,8 +81,12 @@ particulas/screen shake/textura real no feedback de acerto (M11). A Fase 3
 opt-in provadas por um Platformer (M12); grid/pathfinding/turno + promocao
 do `ModifierStack` pro nucleo, provados por um Turn-based Tactics (M13);
 cartas/zonas/efeitos reusando o `ModifierStack` ja promovido, sem ECS,
-provados por um Card Game (M14). Nenhum item planejado restante -- detalhes
-completos em `ROADMAP.md`.
+provados por um Card Game (M14). A Fase 4 (M15) tambem esta concluida: o
+Jogo Musical ganhou um modo Osu! (circulos/sliders em posicao arbitraria,
+julgamento por cursor+clique, capacidade nova de posicao de cursor no
+Pilar 2, gerador deterministico de chart) integrado como um 3o modo
+dentro do produto ja existente, sem tocar o modo lane original. Nenhum
+item planejado restante -- detalhes completos em `ROADMAP.md`.
 
 ## Rodando localmente
 

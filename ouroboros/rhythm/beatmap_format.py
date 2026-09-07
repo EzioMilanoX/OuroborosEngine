@@ -40,3 +40,17 @@ Extracao multi-layer ("hybrid") -- o produto roteia por ela (ex.: kicks
 nas extremidades, vocais no centro). Beatmaps antigos, sem o campo,
 continuam validos: o schema permanece uniforme, apenas com uma
 propriedade adicional."""
+
+REQUIRED_OSU_HIT_OBJECT_FIELDS: Tuple[str, ...] = ("timestamp_seconds", "threat_type", "x", "y", "strength")
+"""Campos obrigatorios de cada hit-object do modo Osu! (ROADMAP M15) --
+schema PARALELO a `REQUIRED_THREAT_FIELDS` (nao uma extensao dela; o
+documento raiz -- `version`/`track_id`/`bpm`/`threats`, ver
+`REQUIRED_ROOT_FIELDS` -- e IDENTICO nos dois modos, so o formato de
+CADA entrada de `threats` diverge)."""
+
+OPTIONAL_OSU_HIT_OBJECT_FIELDS: Tuple[str, ...] = ("layer", "end_x", "end_y", "duration_seconds")
+"""Campos OPCIONAIS de um hit-object Osu!. `end_x`/`end_y`/
+`duration_seconds` sao obrigatorios NA PRATICA para um SLIDER (validado
+por `OsuBeatmapLoader`/`OsuBeatmapValidator` contra o `threat_type`
+resolvido, nao por uma tupla estatica de campos -- um CIRCLE nunca os
+tem)."""

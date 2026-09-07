@@ -22,6 +22,8 @@ class NullInputProvider(IInputProvider):
         self._axes = {}
         self._wants_quit = False
         self._last_rumble = None
+        self._cursor_x = 0.0
+        self._cursor_y = 0.0
 
     def load_bindings(self, bindings_path: str) -> None:
         pass
@@ -42,6 +44,9 @@ class NullInputProvider(IInputProvider):
     def get_axis(self, axis_name: str) -> float:
         return self._axes.get(axis_name, 0.0)
 
+    def get_cursor_position(self):
+        return (self._cursor_x, self._cursor_y)
+
     def wants_quit(self) -> bool:
         return self._wants_quit
 
@@ -61,6 +66,11 @@ class NullInputProvider(IInputProvider):
     def set_axis(self, axis_name: str, value: float) -> None:
         """Define imediatamente o valor de `axis_name` (sem esperar `poll()`)."""
         self._axes[axis_name] = value
+
+    def set_cursor_position(self, x: float, y: float) -> None:
+        """Define imediatamente a posicao de cursor (sem esperar `poll()`) -- mesmo espirito de `set_axis`."""
+        self._cursor_x = float(x)
+        self._cursor_y = float(y)
 
     def set_wants_quit(self, value: bool) -> None:
         """Programa `wants_quit()` para retornar `value`."""

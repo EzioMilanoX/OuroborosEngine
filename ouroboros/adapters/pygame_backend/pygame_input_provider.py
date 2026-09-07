@@ -33,6 +33,8 @@ class PygameInputProvider(IInputProvider):
         self._wants_quit = False
         self._joystick = None
         self._joystick_probed = False
+        self._cursor_x = 0.0
+        self._cursor_y = 0.0
 
     def load_bindings(self, bindings_path: str) -> None:
         with open(bindings_path, "r", encoding="utf-8") as f:
@@ -64,6 +66,8 @@ class PygameInputProvider(IInputProvider):
                 current[action_name] = code < len(mouse_buttons) and bool(mouse_buttons[code])
         self._current_held = current
 
+        self._cursor_x, self._cursor_y = (float(v) for v in pygame.mouse.get_pos())
+
     def is_action_pressed(self, action_name: str) -> bool:
         return self._current_held.get(action_name, False) and not self._previous_held.get(action_name, False)
 
@@ -75,6 +79,9 @@ class PygameInputProvider(IInputProvider):
 
     def get_axis(self, axis_name: str) -> float:
         return self._axes.get(axis_name, 0.0)
+
+    def get_cursor_position(self):
+        return (self._cursor_x, self._cursor_y)
 
     def wants_quit(self) -> bool:
         return self._wants_quit

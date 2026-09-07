@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Set, Tuple
 
 _REQUIRED_FIELDS = ("track_id", "display_name", "beatmap_path", "audio_path")
+_VALID_MODES = ("lane", "osu")
 
 
 class SongCatalogError(Exception):
@@ -21,17 +22,25 @@ class SongCatalogError(Exception):
 
 @dataclass(frozen=True)
 class SongEntry:
-    """Uma musica jogavel do catalogo (ROADMAP M11.1/M11.2).
+    """Uma musica jogavel do catalogo (ROADMAP M11.1/M11.2/M15).
 
     `beatmap_path`/`audio_path` ja vem RESOLVIDOS (absolutos, contra o
     `repo_root` passado a `SongCatalogLoader`) -- o chamador nunca precisa
     saber que esses campos comecaram como strings relativas no JSON.
-    """
+
+    `mode` (ROADMAP M15): `"lane"` (default, comportamento historico --
+    campo OPCIONAL, `demo_track.json`/`second_track.json` continuam
+    carregando sem nenhuma mudanca) ou `"osu"` (circulos/sliders em
+    posicao arbitraria). `MenuScene` nunca le este campo -- so o
+    `on_confirm` de `games/rhythm_game/composition.py` o inspeciona para
+    decidir qual funcao de composicao (`_start_song` vs.
+    `start_osu_song`) chamar."""
 
     track_id: str
     display_name: str
     beatmap_path: Path
     audio_path: Path
+    mode: str = "lane"
 
 
 class SongCatalogLoader:
@@ -76,12 +85,17 @@ class SongCatalogLoader:
                 raise SongCatalogError(f"track_id duplicado '{track_id}' em {path}")
             seen_track_ids.add(track_id)
 
+            mode = str(data.get("mode", "lane"))
+            if mode not in _VALID_MODES:
+                raise SongCatalogError(f"arquivo {path} com 'mode' desconhecido '{mode}' (validos: {_VALID_MODES})")
+
             entries.append(
                 SongEntry(
                     track_id=track_id,
                     display_name=str(data["display_name"]),
                     beatmap_path=self._repo_root / str(data["beatmap_path"]),
                     audio_path=self._repo_root / str(data["audio_path"]),
+                    mode=mode,
                 )
             )
 

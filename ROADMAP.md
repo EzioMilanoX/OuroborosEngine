@@ -503,3 +503,116 @@ Sequencial (decisão do usuário): M12 primeiro por ser o menor risco/escopo;
 M13 antes de M14 porque a promoção do `ModifierStack` (2º consumidor real)
 é o que permite o M14 reusá-lo em vez de duplicar o mesmo vocabulário de
 buff uma 3ª vez. **Fase 3 (M12–M14) concluída inteira.**
+
+---
+
+## Fase 4 — Jogo Musical: modo Osu! (M15) — concluído
+
+Pedido do usuário: um novo modo DENTRO do Jogo Musical já existente (não um
+produto novo) — círculos/sliders em posição arbitrária da tela, ao invés das
+4 lanes fixas. Investigação confirmou que o Jogo Musical de hoje é 100%
+orientado a índice de lane (dtype de nota, beatmap JSON, `JudgmentSystem`) —
+nenhum conceito de posição x/y existia em lugar nenhum, e `IInputProvider`
+não expunha posição de cursor/mouse (só ações digitais + eixo `[-1,1]`).
+Decisões do usuário: escopo círculos + sliders (não só círculos); integração
+como modo novo dentro do produto existente (reusa `MenuScene`/
+`SongCatalogLoader`/`IAudioClock`/juice de partícula-screenshake); chart de
+demonstração gerado por um algoritmo determinístico (não escrito à mão).
+
+1. **`SongEntry.mode`** (`ouroboros/rhythm/loaders/song_catalog_loader.py`):
+   campo opcional `"lane"` (default) ou `"osu"` — 100% aditivo,
+   `demo_track.json`/`second_track.json` continuam carregando sem nenhuma
+   mudança. `MenuScene` nunca lê este campo; só o `on_confirm` de
+   `games/rhythm_game/composition.py` o inspeciona pra escolher
+   `_start_song` vs. `start_osu_song` (dispatch por igualdade de string, não
+   um registry — só 2 modos existem).
+2. **Schema paralelo, não extensão** de `SCHEDULED_THREAT_DTYPE`/
+   `NOTE_STATE_DTYPE`: `OSU_SCHEDULED_HIT_DTYPE`/`OSU_NOTE_STATE_DTYPE`
+   (`ouroboros/rhythm/runtime/schemas.py`) — sem campo `lane`, com
+   `x`/`y`/`end_x`/`end_y`/`duration_seconds` (trajeto de slider v1 é
+   sempre uma RETA de 2 pontos, sem polyline/Bezier) e acumuladores de
+   tracking `tracked_time_seconds`/`good_time_seconds` PONDERADOS POR TEMPO
+   REAL (nunca contagem de frames — ver achado da crítica abaixo).
+   `OsuBeatmapLoader` (`ouroboros/rhythm/runtime/osu_beatmap_loader.py`)
+   mirra `BeatmapLoader`, reusa `BeatmapFormatError`.
+3. **Gerador determinístico de posição** (`ouroboros/rhythm/offline/
+   osu_placement.py`): deriva x/y/sliders a partir dos onsets JÁ extraídos
+   de um beatmap lane-mode existente (nunca reanalisa áudio), seedado por
+   `stable_id_from_name(f"{track_id}:osu_placement")`. Ferramenta manual
+   `games/rhythm_game/tools/generate_osu_beatmap.py` gerou
+   `data/beatmaps/demo_track_osu.beatmap.json` (39 hit-objects, 9 sliders) a
+   partir de `demo_track.beatmap.json`.
+4. **`IInputProvider.get_cursor_position()`** (capacidade nova de Pilar 2,
+   pixels de tela): implementada em `PygameInputProvider` (cacheia
+   `pygame.mouse.get_pos()` dentro de `poll()`, mesmo contrato de
+   `is_action_held`) e `NullInputProvider` (+ `set_cursor_position` de
+   teste). Clique reusa `MOUSE_LEFT` via bindings JSON (`"click"` em
+   `data/input_bindings/rhythm_keyboard.json`) — zero capacidade nova de
+   parsing de binding.
+5. **3 sistemas novos** (`ouroboros/rhythm/runtime/`): `OsuSpawnerSystem`
+   (cópia autônoma da lógica de cursor/`searchsorted` de
+   `RhythmSpawnerSystem` — os sistemas de ritmo não compartilham base além
+   de `ISystem`), `OsuPresentationSystem` (encolhe o anel de aproximação,
+   move a bola de slider em tracking — primeiro sistema do motor a animar
+   `scale_x/y` por frame), `OsuJudgmentSystem` (julga clique por posição+
+   tempo, resolve slider pela fração `good_time_seconds/tracked_time_seconds`
+   ao fim da duração, reusa o `Judgment` IntEnum existente).
+6. **Renderização sem nenhum primitivo novo de `IRenderer`**: anel/bola são
+   entidades companheiras (`transform`+`sprite`, arquétipo
+   `osu_visual_marker`) desenhadas de graça pelo `draw_batch` genérico já
+   existente; o trajeto do slider reusa a pool `fx`/`FxTtlSystem` JÁ
+   existentes (nunca usados pelo Jogo Musical antes) — zero código novo de
+   desenho.
+7. **`games/rhythm_game/osu/composition.py`** (`start_osu_song`): mesma
+   forma de `_start_song`, reusa `ParticleStorage`/`ScreenShake`/
+   `PauseScene`/`QuitOnActionSystem` verbatim. `hud.py` ganhou
+   `judgment_line_y`/`lane_x_positions` opcionais (default `None`) — reusado
+   sem mudança pros dois modos.
+
+Achados reais da crítica (incorporados antes de implementar, o marco mais
+extenso desta engine até aqui): **bug quase-certo de crash no 1º frame** —
+`NULL_PACKED_HANDLE` empacota `index = -1`, que via máscara de bits vira
+`0xFFFFFFFF` (positivo enorme, não `-1`); resolver `ring_entity_id`/
+`ball_entity_id` sem mascarar `!= NULL_PACKED_HANDLE` ANTES de
+`unpack_batch` estourava `IndexError` assim que qualquer CIRCLE (cujo
+`ball_entity_id` é permanentemente o sentinela) entrasse em campo —
+corrigido em `OsuPresentationSystem`; **handle obsoleto/contaminação
+cruzada** — ao destruir o anel no clique de um slider, `ring_entity_id`
+precisa ser resetado pra `NULL_PACKED_HANDLE` NA HORA (não lido
+preguiçosamente depois): `MemoryManager` recicla índices em LIFO, então o
+índice recém-liberado é o PRÓXIMO devolvido por qualquer `create_entity` —
+sem o reset, um leitor vetorizado escreveria silenciosamente na entidade
+nova errada; **vazamento de entidade órfã** — um slider NUNCA clicado que
+auto-erra precisa destruir AMBAS as companheiras (anel E bola, as duas
+ainda vivas), não só o anel como um círculo; **viés de taxa de quadros** —
+ponderar a fração de tracking por CONTAGEM DE FRAMES em vez de tempo real
+puniria o mesmo comportamento físico do jogador com mais peso numa máquina
+mais lenta — corrigido com acumuladores em segundos reais de `delta_time`;
+**duração de slider podendo sobrepor o próximo onset** — verificado
+numericamente contra o beatmap real (gaps de ~0.488s/0.511s, mais curtos
+que 1 batida a 117bpm): o gerador agora clampa `duration_seconds` contra o
+intervalo real até o próximo onset. Achado real dos MEUS PRÓPRIOS testes
+(não da crítica): `hud.py` computava `min(lane_x_positions)`/`max(...)`
+EAGERMENTE fora do closure retornado — chamar com `lane_x_positions=None`
+(modo Osu!) levantava `TypeError` antes de qualquer frame renderizar,
+corrigido computando as duas variáveis condicionalmente.
+
+Verificado: 44 testes novos (`tests/rhythm/test_osu_beatmap_loader.py`/
+`test_osu_placement.py` — incluindo o teste que prova o clamp de duração
+contra o gap real do beatmap/`test_osu_spawner_system.py`/
+`test_osu_presentation_system.py` — regressão direta do bug de
+`NULL_PACKED_HANDLE`/`test_osu_judgment_system.py` — regressão do reset de
+handle obsoleto, do vazamento de entidade órfã, e da invariância de taxa de
+quadros do tracking; `tests/games/test_rhythm_game_osu_composition_headless.py`,
+incluindo ~4s de frames reais sem crashar) + suite completa (545 testes,
+todos passando) + `lint-imports` (3 kept, 0 broken) + sessão manual headless
+confirmando spawn/aproximação/clique/tracking/julgamento de ponta a ponta.
+
+Fora de escopo (deferido): spinners; sliders curvos/Bezier/multi-waypoint
+(só reta, 2 pontos); pontuação separada de cabeça/cauda/tick de slider;
+resolução de empilhamento/sobreposição de hit-objects além da
+rejeição-e-reamostra com teto fixo; replay/trilha de cursor; curvas de
+approach-rate/circle-size por dificuldade (constantes escalares simples);
+hit-test compensado por screen-shake; promoção do padrão de RNG
+determinístico do gerador pra `ouroboros.core`; mais de 1 beatmap Osu! real
+(só `demo_track_osu` — `second_track` continua só lane-mode).

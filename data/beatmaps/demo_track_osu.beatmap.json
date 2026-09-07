@@ -1,0 +1,346 @@
+{
+  "version": 1,
+  "track_id": "demo_track_osu",
+  "bpm": 117.45383522727273,
+  "threats": [
+    {
+      "timestamp_seconds": 0.4876190476190476,
+      "threat_type": "osu_circle",
+      "x": 396.049261212704,
+      "y": 442.38361834521777,
+      "strength": 0.0,
+      "layer": ""
+    },
+    {
+      "timestamp_seconds": 0.9984580498866213,
+      "threat_type": "osu_circle",
+      "x": 125.02810627130475,
+      "y": 246.73179497904738,
+      "strength": 0.0,
+      "layer": ""
+    },
+    {
+      "timestamp_seconds": 1.486077097505669,
+      "threat_type": "osu_circle",
+      "x": 189.57039946781623,
+      "y": 182.5347079887712,
+      "strength": 0.0,
+      "layer": ""
+    },
+    {
+      "timestamp_seconds": 1.9969160997732427,
+      "threat_type": "osu_slider",
+      "x": 652.1366793087702,
+      "y": 79.23809014450114,
+      "strength": 0.0,
+      "layer": "",
+      "end_x": 92.61969795342375,
+      "end_y": 398.16106686388207,
+      "duration_seconds": 0.4376190476190474
+    },
+    {
+      "timestamp_seconds": 2.48453514739229,
+      "threat_type": "osu_circle",
+      "x": 677.5320247149178,
+      "y": 476.94645487898856,
+      "strength": 0.0,
+      "layer": ""
+    },
+    {
+      "timestamp_seconds": 2.995374149659864,
+      "threat_type": "osu_circle",
+      "x": 538.6133401474799,
+      "y": 113.32727565453754,
+      "strength": 0.0,
+      "layer": ""
+    },
+    {
+      "timestamp_seconds": 3.4829931972789114,
+      "threat_type": "osu_circle",
+      "x": 278.06817891581653,
+      "y": 445.99764060817887,
+      "strength": 0.0,
+      "layer": ""
+    },
+    {
+      "timestamp_seconds": 3.9938321995464854,
+      "threat_type": "osu_slider",
+      "x": 328.8956273487536,
+      "y": 309.2798566235806,
+      "strength": 0.0,
+      "layer": "",
+      "end_x": 187.4062834182853,
+      "end_y": 217.8720980358337,
+      "duration_seconds": 0.43761904761904785
+    },
+    {
+      "timestamp_seconds": 4.481451247165533,
+      "threat_type": "osu_circle",
+      "x": 388.8165035130467,
+      "y": 178.6778384044709,
+      "strength": 0.0,
+      "layer": ""
+    },
+    {
+      "timestamp_seconds": 4.992290249433107,
+      "threat_type": "osu_circle",
+      "x": 138.74993504843505,
+      "y": 374.158460189359,
+      "strength": 0.0,
+      "layer": ""
+    },
+    {
+      "timestamp_seconds": 5.479909297052155,
+      "threat_type": "osu_circle",
+      "x": 107.54618931543605,
+      "y": 480.67371407454687,
+      "strength": 0.0,
+      "layer": ""
+    },
+    {
+      "timestamp_seconds": 5.990748299319728,
+      "threat_type": "osu_slider",
+      "x": 241.77907320444132,
+      "y": 438.25239643140657,
+      "strength": 0.0,
+      "layer": "",
+      "end_x": 363.7631673133358,
+      "end_y": 356.8601866671178,
+      "duration_seconds": 0.4608390022675735
+    },
+    {
+      "timestamp_seconds": 6.501587301587302,
+      "threat_type": "osu_circle",
+      "x": 525.6710427558005,
+      "y": 510.5286870818216,
+      "strength": 0.0,
+      "layer": ""
+    },
+    {
+      "timestamp_seconds": 6.989206349206349,
+      "threat_type": "osu_circle",
+      "x": 325.3215944111385,
+      "y": 421.0136299312806,
+      "strength": 0.0,
+      "layer": ""
+    },
+    {
+      "timestamp_seconds": 7.500045351473923,
+      "threat_type": "osu_circle",
+      "x": 394.58906882220003,
+      "y": 246.51753533663384,
+      "strength": 0.0,
+      "layer": ""
+    },
+    {
+      "timestamp_seconds": 7.987664399092971,
+      "threat_type": "osu_slider",
+      "x": 255.6354375476113,
+      "y": 106.62702674351789,
+      "strength": 0.0,
+      "layer": "",
+      "end_x": 481.9179382824572,
+      "end_y": 438.8773017794712,
+      "duration_seconds": 0.4608390022675735
+    },
+    {
+      "timestamp_seconds": 8.498503401360544,
+      "threat_type": "osu_circle",
+      "x": 345.1365783244639,
+      "y": 278.012652587685,
+      "strength": 0.0,
+      "layer": ""
+    },
+    {
+      "timestamp_seconds": 8.986122448979591,
+      "threat_type": "osu_circle",
+      "x": 414.6173642020848,
+      "y": 344.74047933676854,
+      "strength": 0.0,
+      "layer": ""
+    },
+    {
+      "timestamp_seconds": 9.496961451247165,
+      "threat_type": "osu_circle",
+      "x": 530.496943706923,
+      "y": 394.9222416415995,
+      "strength": 0.0,
+      "layer": ""
+    },
+    {
+      "timestamp_seconds": 9.984580498866213,
+      "threat_type": "osu_slider",
+      "x": 698.5827481008121,
+      "y": 295.6387439896283,
+      "strength": 0.0,
+      "layer": "",
+      "end_x": 246.23089908249557,
+      "end_y": 479.39305589160557,
+      "duration_seconds": 0.4608390022675735
+    },
+    {
+      "timestamp_seconds": 10.495419501133787,
+      "threat_type": "osu_circle",
+      "x": 304.2187085456586,
+      "y": 416.1906587462985,
+      "strength": 0.0,
+      "layer": ""
+    },
+    {
+      "timestamp_seconds": 10.983038548752834,
+      "threat_type": "osu_circle",
+      "x": 524.5817579823229,
+      "y": 412.2329286103554,
+      "strength": 0.0,
+      "layer": ""
+    },
+    {
+      "timestamp_seconds": 11.493877551020407,
+      "threat_type": "osu_circle",
+      "x": 694.2553018593359,
+      "y": 364.95476832804724,
+      "strength": 0.0,
+      "layer": ""
+    },
+    {
+      "timestamp_seconds": 11.981496598639456,
+      "threat_type": "osu_slider",
+      "x": 217.7632135518098,
+      "y": 206.61797757275724,
+      "strength": 0.0,
+      "layer": "",
+      "end_x": 229.36729945240103,
+      "end_y": 85.3642512910267,
+      "duration_seconds": 0.4608390022675735
+    },
+    {
+      "timestamp_seconds": 12.49233560090703,
+      "threat_type": "osu_circle",
+      "x": 487.7727640241119,
+      "y": 312.59914731236677,
+      "strength": 0.0,
+      "layer": ""
+    },
+    {
+      "timestamp_seconds": 12.979954648526077,
+      "threat_type": "osu_circle",
+      "x": 505.2695485633689,
+      "y": 158.5471127897501,
+      "strength": 0.0,
+      "layer": ""
+    },
+    {
+      "timestamp_seconds": 13.49079365079365,
+      "threat_type": "osu_circle",
+      "x": 203.106412620835,
+      "y": 353.3553342900702,
+      "strength": 0.0,
+      "layer": ""
+    },
+    {
+      "timestamp_seconds": 14.001632653061224,
+      "threat_type": "osu_slider",
+      "x": 560.7818102078859,
+      "y": 205.27547574062646,
+      "strength": 0.0,
+      "layer": "",
+      "end_x": 499.1897222260217,
+      "end_y": 440.8191899259542,
+      "duration_seconds": 0.43761904761904874
+    },
+    {
+      "timestamp_seconds": 14.489251700680272,
+      "threat_type": "osu_circle",
+      "x": 665.304525480879,
+      "y": 521.8061633352212,
+      "strength": 0.0,
+      "layer": ""
+    },
+    {
+      "timestamp_seconds": 15.000090702947846,
+      "threat_type": "osu_circle",
+      "x": 605.0503700587856,
+      "y": 438.44486468943927,
+      "strength": 0.0,
+      "layer": ""
+    },
+    {
+      "timestamp_seconds": 15.487709750566893,
+      "threat_type": "osu_circle",
+      "x": 350.96762097308397,
+      "y": 92.94730305555942,
+      "strength": 0.0,
+      "layer": ""
+    },
+    {
+      "timestamp_seconds": 15.998548752834466,
+      "threat_type": "osu_slider",
+      "x": 157.84086661219789,
+      "y": 409.2150717232581,
+      "strength": 0.0,
+      "layer": "",
+      "end_x": 418.7995638204792,
+      "end_y": 68.617119153851,
+      "duration_seconds": 0.43761904761904874
+    },
+    {
+      "timestamp_seconds": 16.486167800453515,
+      "threat_type": "osu_circle",
+      "x": 205.37477661339076,
+      "y": 185.4648544280053,
+      "strength": 0.0,
+      "layer": ""
+    },
+    {
+      "timestamp_seconds": 16.99700680272109,
+      "threat_type": "osu_circle",
+      "x": 315.0259691947954,
+      "y": 264.69419389676773,
+      "strength": 0.0,
+      "layer": ""
+    },
+    {
+      "timestamp_seconds": 17.484625850340137,
+      "threat_type": "osu_circle",
+      "x": 237.5920801637752,
+      "y": 72.07723858146488,
+      "strength": 0.0,
+      "layer": ""
+    },
+    {
+      "timestamp_seconds": 17.99546485260771,
+      "threat_type": "osu_slider",
+      "x": 590.6831584800779,
+      "y": 309.9305889810719,
+      "strength": 0.0,
+      "layer": "",
+      "end_x": 67.36450031643054,
+      "end_y": 518.2808322696862,
+      "duration_seconds": 0.4376190476190452
+    },
+    {
+      "timestamp_seconds": 18.483083900226756,
+      "threat_type": "osu_circle",
+      "x": 712.3105932678907,
+      "y": 150.89252700187646,
+      "strength": 0.0,
+      "layer": ""
+    },
+    {
+      "timestamp_seconds": 18.99392290249433,
+      "threat_type": "osu_circle",
+      "x": 332.18993996380453,
+      "y": 318.9215321783935,
+      "strength": 0.0,
+      "layer": ""
+    },
+    {
+      "timestamp_seconds": 19.481541950113378,
+      "threat_type": "osu_circle",
+      "x": 359.19538768805273,
+      "y": 432.14146592962237,
+      "strength": 0.0,
+      "layer": ""
+    }
+  ]
+}

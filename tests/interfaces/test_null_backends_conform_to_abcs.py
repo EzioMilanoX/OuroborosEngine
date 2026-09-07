@@ -63,6 +63,17 @@ def test_null_input_provider_is_a_real_iinputprovider(null_input_provider):
     assert null_input_provider.is_action_held("fire") is False
 
 
+def test_null_input_provider_cursor_position_is_settable_for_tests(null_input_provider):
+    """ROADMAP M15: `get_cursor_position()` comeca em `(0.0, 0.0)` e e
+    definido imediatamente por `set_cursor_position` (sem esperar
+    `poll()`) -- mesmo espirito de `set_axis`, ver docstring da classe."""
+    assert null_input_provider.get_cursor_position() == (0.0, 0.0)
+
+    null_input_provider.set_cursor_position(123.5, 456.75)
+
+    assert null_input_provider.get_cursor_position() == (123.5, 456.75)
+
+
 def test_null_input_provider_records_rumble_without_hardware(null_input_provider):
     assert null_input_provider._last_rumble is None
     null_input_provider.set_rumble(0.5, 1.0, 0.2)

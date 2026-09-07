@@ -1,0 +1,5 @@
+{
+  "id": "osu_visual_marker",
+  "pools": ["transform", "sprite"],
+  "note": "Entidade PURAMENTE visual (anel de aproximacao ou bola de slider) -- a logica de julgamento nunca consulta estas entidades, so `osu_note_state.ring_entity_id`/`ball_entity_id` (que apontam pra elas). Subpasta dedicada (data/archetypes/rhythm_osu/, nao data/archetypes/rhythm/): ArchetypeLoader escaneia o diretorio inteiro nao-recursivamente -- misturar com os arquetipos do modo lane faria _start_song (modo lane) tentar registrar um arquetipo que depende de uma pool osu_note_state que o World do modo lane nunca cria."
+}

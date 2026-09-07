@@ -1,0 +1,5 @@
+{
+  "id": "osu_note",
+  "pools": ["transform", "sprite", "osu_note_state"],
+  "note": "Cabeca de um hit-object Osu! (circulo ou slider) -- posicao FIXA (nunca rola, ao contrario do modo lane): so o anel de aproximacao/bola companheira (arquetipo osu_visual_marker) se movem. Pool `osu_note_state` e especifica do modo Osu!, registrada por games/rhythm_game/osu/composition.py."
+}

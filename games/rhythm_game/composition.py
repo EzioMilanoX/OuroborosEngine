@@ -31,6 +31,7 @@ from ouroboros.rhythm.runtime.schemas import NOTE_STATE_DTYPE
 
 from games.rhythm_game.hud import build_hud_callback
 from games.rhythm_game.menu_scene import MenuRow, MenuScene
+from games.rhythm_game.osu.composition import start_osu_song
 from games.rhythm_game.pause_scene import PauseScene
 from games.rhythm_game.systems.pause_on_action_system import PauseOnActionSystem
 from games.rhythm_game.systems.quit_on_action_system import QuitOnActionSystem
@@ -326,10 +327,12 @@ def _build_menu_scene(game_loop: GameLoop, config: EngineConfig, rows: Sequence[
 
     def on_confirm(song: SongEntry, difficulty_id: str) -> None:
         difficulty = RhythmDifficultyLoader(RHYTHM_DIFFICULTIES_DIR).load(difficulty_id)
-        _start_song(
-            game_loop, config, song, difficulty,
-            on_return_to_menu=_make_on_return_to_menu(game_loop, config, rows, song.track_id),
-        )
+        on_return_to_menu = _make_on_return_to_menu(game_loop, config, rows, song.track_id)
+        # Dispatch por igualdade de string, nao um registry/strategy-pattern
+        # (ROADMAP M15) -- so 2 modos existem hoje, abstrair mais que isso
+        # nao se justifica ainda.
+        starter = start_osu_song if song.mode == "osu" else _start_song
+        starter(game_loop, config, song, difficulty, on_return_to_menu=on_return_to_menu)
 
     return MenuScene(
         input_provider=game_loop.input_provider,

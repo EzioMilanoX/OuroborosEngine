@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import Tuple
 
 
 class IInputProvider(ABC):
@@ -51,6 +52,20 @@ class IInputProvider(ABC):
     @abstractmethod
     def get_axis(self, axis_name: str) -> float:
         """Valor continuo `[-1.0, 1.0]` de um eixo (analogico, D-pad, WASD combinado, etc.)."""
+        ...
+
+    @abstractmethod
+    def get_cursor_position(self) -> Tuple[float, float]:
+        """Posicao do cursor/mouse em PIXELS de tela (mesma convencao de
+        `transform.position_x/y`/`IRenderer.get_viewport_size` -- nada
+        normalizado 0..1 em lugar nenhum do motor), atualizada no
+        MAXIMO uma vez por frame por `poll()` (mesmo contrato de
+        `is_action_held`/`get_axis`: le estado ja cacheado, nunca
+        consulta o backend concreto diretamente). Nao compensada por
+        `set_camera_offset` (screen-shake desloca o que e DESENHADO,
+        nao o que e testado -- mesmo criterio ja usado por
+        `CollisionSystem`/`JudgmentSystem`, que tambem nunca compensam
+        camera na logica de jogo)."""
         ...
 
     @abstractmethod

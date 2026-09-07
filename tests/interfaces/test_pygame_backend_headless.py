@@ -236,6 +236,24 @@ def test_pygame_input_provider_resolves_and_polls_bindings(bindings_path):
     assert provider.wants_quit() is False
 
 
+def test_pygame_input_provider_get_cursor_position_is_safe_under_the_dummy_driver(bindings_path):
+    """ROADMAP M15: `pygame.mouse.get_pos()` sob `SDL_VIDEODRIVER=dummy`
+    (ja forcado em tests/conftest.py) retorna um valor sao (nao levanta),
+    e `get_cursor_position()` so e atualizado dentro de `poll()` -- mesmo
+    contrato de `is_action_held`/`get_axis`."""
+    pygame.display.init()
+    provider = PygameInputProvider()
+    provider.load_bindings(bindings_path)
+
+    x, y = provider.get_cursor_position()
+    assert (x, y) == (0.0, 0.0)  # antes de qualquer poll() -- estado inicial
+
+    provider.poll()  # nao deve levantar
+
+    x, y = provider.get_cursor_position()
+    assert isinstance(x, float) and isinstance(y, float)
+
+
 def test_pygame_input_provider_set_rumble_is_a_silent_noop_without_a_joystick():
     provider = PygameInputProvider()
     provider.set_rumble(1.0, 1.0, 0.1)  # nao ha controle conectado -- nunca levanta

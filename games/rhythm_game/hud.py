@@ -22,8 +22,8 @@ def build_hud_callback(
     spawner_system: RhythmSpawnerSystem,
     note_state_pool: ComponentPool,
     viewport_size: Tuple[int, int],
-    judgment_line_y: float,
-    lane_x_positions: Sequence[float],
+    judgment_line_y: Optional[float] = None,
+    lane_x_positions: Optional[Sequence[float]] = None,
     particle_storage: Optional[ParticleStorage] = None,
 ) -> Callable[[IRenderer], None]:
     """
@@ -32,7 +32,16 @@ def build_hud_callback(
     `note_state_pool`) -- por isso so pode ser construido DEPOIS que
     esses objetos existem, ou seja, depois que o script de composicao
     ja registrou seus proprios sistemas em cima do `GameLoop` retornado
-    por `CompositionRoot.build()`.
+    por `CompositionRoot.build()`. Duck-typed deliberadamente (score/
+    combo/max_combo/accuracy/is_finished) -- `OsuJudgmentSystem`/
+    `OsuSpawnerSystem` (ROADMAP M15) expoem as MESMAS propriedades e
+    reusam este callback sem subclasse nenhuma.
+
+    `judgment_line_y`/`lane_x_positions` (opcionais, default `None`):
+    exclusivos do modo lane -- o modo Osu! (sem lanes/linha de
+    julgamento fixa) omite os dois, e o retangulo de linha simplesmente
+    nunca e desenhado (ver `draw_ui` abaixo -- os dois precisam estar
+    presentes juntos, nunca so um).
 
     `particle_storage` (opcional, default `None` -- omitir preserva 100%
     o comportamento antigo, mesmo idioma do resto da composicao): se
@@ -43,8 +52,11 @@ def build_hud_callback(
     num segundo callback.
     """
     width, height = viewport_size
-    line_left = min(lane_x_positions) - 40.0
-    line_right = max(lane_x_positions) + 40.0
+    line_left: Optional[float] = None
+    line_right: Optional[float] = None
+    if lane_x_positions is not None:
+        line_left = min(lane_x_positions) - 40.0
+        line_right = max(lane_x_positions) + 40.0
 
     def draw_ui(renderer: IRenderer) -> None:
         if particle_storage is not None and particle_storage.count > 0:
@@ -57,7 +69,8 @@ def build_hud_callback(
         renderer.draw_text(10, 40, f"Combo: {judgment_system.combo}  (max {judgment_system.max_combo})", 18, _GOLD)
         renderer.draw_text(10, 64, f"Precisao: {judgment_system.accuracy * 100.0:.1f}%", 18, _LILAC)
 
-        renderer.draw_ui_rect(line_left, judgment_line_y - 3.0, line_right - line_left, 6.0, _LINE_COLOR)
+        if judgment_line_y is not None and line_left is not None:
+            renderer.draw_ui_rect(line_left, judgment_line_y - 3.0, line_right - line_left, 6.0, _LINE_COLOR)
 
         if spawner_system.is_finished and note_state_pool.count == 0:
             renderer.draw_text(
