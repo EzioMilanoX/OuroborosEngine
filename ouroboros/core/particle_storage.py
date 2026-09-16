@@ -126,12 +126,31 @@ class ParticleStorage:
         self._count = end
         return actual
 
-    def update(self, delta_time: float) -> None:
+    def update(self, delta_time: float, gravity_y: float = 0.0) -> None:
         """Integra posicao por velocidade, decrementa ttl, e compacta (remove)
-        particulas expiradas -- tudo vetorizado, nenhum laco Python por particula."""
+        particulas expiradas -- tudo vetorizado, nenhum laco Python por particula.
+
+        `gravity_y` (px/s^2, opcional) e somado a velocidade ANTES da posicao
+        ser integrada -- Euler semi-implicito, o mesmo esquema do
+        `GravitySystem`. Default 0.0: sem ela, nada muda, e o padrao de quem
+        nao pede gravidade continua o de sempre.
+
+        Existe aqui porque a storage ja integra velocidade em posicao, e
+        deixar SO a aceleracao de fora obriga cada produto a escrever a mesma
+        linha por fora, no buffer certo, na ordem certa -- e a ordem errada
+        (posicao antes da velocidade) atrasa a queda em um frame de um jeito
+        que so se ve lado a lado.
+
+        Um teto de gravidade por STORAGE e nao por particula e deliberado:
+        faisca que cai e brasa que sobe sao dois tipos de particula, e dois
+        tipos de particula sao duas storages. Um campo por particula custaria
+        memoria em todo produto para servir a poucos.
+        """
         if self._count == 0:
             return
         view = self._dense[: self._count]
+        if gravity_y:
+            view["velocity_y"] += gravity_y * delta_time
         view["position_x"] += view["velocity_x"] * delta_time
         view["position_y"] += view["velocity_y"] * delta_time
         view["ttl_seconds"] -= delta_time
