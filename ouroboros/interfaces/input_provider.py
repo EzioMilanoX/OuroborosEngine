@@ -73,6 +73,20 @@ class IInputProvider(ABC):
         """True se o backend recebeu um pedido nativo de encerramento da aplicacao."""
         ...
 
+    def connected_pads(self) -> int:
+        """Quantos controles fisicos estao conectados AGORA.
+
+        Existe porque uma interface que promete a tecla errada e pior que uma
+        que nao promete nada: quem esta com o controle na mao lendo "ESPACO
+        pular" conclui que o controle nao funciona -- e ele funciona. Com
+        este numero, o produto escolhe de que arranjo falar, e volta a falar
+        de teclas quando o controle e desligado.
+
+        Default: 0 (backends sem controle continuam validos, mesmo criterio
+        de `set_rumble`).
+        """
+        return 0
+
     @abstractmethod
     def set_rumble(self, low_freq: float, high_freq: float, duration_sec: float) -> None:
         """Dispara vibracao (haptics/rumble) no controle fisico, se o
