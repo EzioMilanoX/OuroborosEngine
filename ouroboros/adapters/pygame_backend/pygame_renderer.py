@@ -58,6 +58,11 @@ class PygameRenderer(IRenderer):
         self._text_cache: Dict[tuple, pygame.Surface] = {}
         self._textures: Dict[int, pygame.Surface] = {}
         self._texture_scale_cache: Dict[tuple, pygame.Surface] = {}
+        # Superficies de trabalho de `draw_field`, por tamanho. Um campo e
+        # desenhado todo frame; aloca-las por chamada seria trocar o laco de
+        # `draw_batch` por pressao de GC.
+        self._field_masks: Dict[tuple, pygame.Surface] = {}
+        self._field_surfaces: Dict[tuple, pygame.Surface] = {}
 
     def initialize(self, width: int, height: int, title: str) -> None:
         pygame.init()
@@ -221,6 +226,66 @@ class PygameRenderer(IRenderer):
             tmp = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
             pygame.draw.circle(tmp, (r, g, b, a), (radius, radius), radius)
             surf.blit(tmp, (int(x - radius), int(y - radius)), special_flags=pygame.BLEND_RGBA_ADD)
+
+    def draw_field(
+        self,
+        rgb: np.ndarray,
+        x: float,
+        y: float,
+        width: float,
+        height: float,
+        alpha: np.ndarray = None,
+    ) -> None:
+        """Um campo: cor interpolada, forma nao.
+
+        `smoothscale` faz a bilinear da cor; a mascara de `alpha` sobe por
+        `scale`, que e vizinho mais proximo -- e e essa diferenca que deixa a
+        parede com aresta reta enquanto a luz sobre ela e lisa.
+
+        As duas superficies de trabalho sao cacheadas por tamanho: um campo e
+        desenhado todo frame, e alocar dois `Surface` por frame seria trocar o
+        laco de `draw_batch` por pressao de GC.
+        """
+        target_w = max(1, int(width))
+        target_h = max(1, int(height))
+        left = int(float(x) + self._cam_dx)
+        top = int(float(y) + self._cam_dy)
+
+        colour = pygame.transform.smoothscale(
+            pygame.surfarray.make_surface(rgb), (target_w, target_h))
+        if alpha is None:
+            self._surface.blit(colour, (left, top))
+            return
+
+        small = self._field_mask(alpha.shape)
+        view = pygame.surfarray.pixels_alpha(small)
+        view[:] = alpha
+        del view                                  # `pixels_alpha` tranca a surface
+        mask = pygame.transform.scale(small, (target_w, target_h))
+
+        field = self._field_surface(target_w, target_h)
+        field.fill((0, 0, 0, 0))
+        field.blit(colour, (0, 0))
+        target = pygame.surfarray.pixels_alpha(field)
+        source = pygame.surfarray.pixels_alpha(mask)
+        target[:] = source
+        del target, source
+        self._surface.blit(field, (left, top))
+
+    def _field_mask(self, shape) -> pygame.Surface:
+        cols, rows = int(shape[0]), int(shape[1])
+        cached = self._field_masks.get((cols, rows))
+        if cached is None:
+            cached = pygame.Surface((cols, rows), pygame.SRCALPHA)
+            self._field_masks[(cols, rows)] = cached
+        return cached
+
+    def _field_surface(self, width: int, height: int) -> pygame.Surface:
+        cached = self._field_surfaces.get((width, height))
+        if cached is None:
+            cached = pygame.Surface((width, height), pygame.SRCALPHA)
+            self._field_surfaces[(width, height)] = cached
+        return cached
 
     def draw_ui_rect(self, x: float, y: float, w: float, h: float,
                      rgba: Tuple[int, int, int, int]) -> None:

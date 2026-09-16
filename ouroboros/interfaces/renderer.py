@@ -173,6 +173,50 @@ class IRenderer(ABC):
         cena/gather automatico para particulas). Default: no-op.
         """
 
+    def draw_field(
+        self,
+        rgb: np.ndarray,
+        x: float,
+        y: float,
+        width: float,
+        height: float,
+        alpha: np.ndarray = None,
+    ) -> None:
+        """
+        Desenha um CAMPO -- uma grade pequena de valores esticada sobre um
+        retangulo -- interpolando a cor e NAO interpolando a forma.
+
+        Existe porque `draw_batch` cobra por entidade: um campo continuo
+        desenhado como um quad por celula custa `celulas x 2,8 us` e ainda
+        assim mostra degraus do tamanho da celula. Um produto que queira
+        iluminacao, nevoa de guerra, mapa de calor ou qualquer coisa "um
+        numero por celula, liso na tela" nao deveria pagar isso -- nem
+        aceitar ladrilho no lugar de gradiente.
+
+        A divisao entre os dois argumentos E o contrato, e e o que separa
+        esta primitiva de um `blit` escalado qualquer:
+
+        - `rgb` (shape `(cols, rows, 3)` uint8) e interpolado
+          BILINEARMENTE ate o tamanho pedido. E o que a celula *vale*:
+          quanta luz, quanto calor, quanta visao. Valor entre duas celulas
+          e uma pergunta com resposta, e a resposta e a media.
+        - `alpha` (shape `(cols, rows)` uint8, opcional) e escalado por
+          VIZINHO MAIS PROXIMO, entao cada celula vira um bloco de aresta
+          reta. E o que a celula *e*: rocha ou ar, visto ou nao visto.
+          Valor entre duas celulas ai seria uma parede meio existente.
+
+        Sem `alpha` o campo e opaco.
+
+        Interpolar a forma junto com a cor e o erro que este contrato
+        existe pra impedir: a silhueta de uma parede borrada no tamanho de
+        uma celula deixa de dizer onde a parede termina, e num jogo em que
+        a parede decide o caminho isso e pior do que nao suavizar nada.
+
+        Coordenadas de MUNDO, como `draw_batch` -- `set_camera_offset` se
+        aplica. Default: no-op (backends que nao suportam campo continuam
+        validos).
+        """
+
     @abstractmethod
     def get_viewport_size(self) -> Tuple[int, int]:
         """Retorna `(largura, altura)` atuais da area de desenho, em pixels."""
