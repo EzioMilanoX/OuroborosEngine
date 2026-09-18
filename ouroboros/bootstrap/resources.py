@@ -21,7 +21,10 @@ A regra e uma so: **nunca depender do diretorio atual**. Tres casos:
 * **Repositorio** -- a raiz que o proprio produto declara.
 * **PyInstaller onefile** -- `sys._MEIPASS`, a pasta temporaria onde o bundle
   se descompacta.
-* **PyInstaller onedir** -- a pasta do proprio executavel.
+* **PyInstaller onedir** -- `sys._MEIPASS` tambem, desde a versao 6: ele
+  aponta para a subpasta `_internal/` ao lado do executavel, que e onde os
+  dados de fato ficam. A pasta do executavel e o ultimo recurso, para
+  bundles antigos que nao definem `_MEIPASS`.
 """
 from __future__ import annotations
 
@@ -38,8 +41,10 @@ def is_frozen() -> bool:
 def frozen_root() -> Optional[Path]:
     """A raiz dos dados dentro de um bundle, ou `None` fora de um.
 
-    `_MEIPASS` so existe no modo onefile; no onedir os dados ficam ao lado do
-    executavel.
+    `_MEIPASS` cobre os dois modos do PyInstaller 6: no onefile ele e a pasta
+    temporaria onde o bundle se descompacta, no onedir e a subpasta
+    `_internal/` ao lado do executavel. Verificado com 6.21 -- a pasta do
+    executavel so vale como ultimo recurso, para bundles que nao o definam.
     """
     if not is_frozen():
         return None
