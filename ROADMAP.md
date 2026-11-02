@@ -616,3 +616,52 @@ approach-rate/circle-size por dificuldade (constantes escalares simples);
 hit-test compensado por screen-shake; promoção do padrão de RNG
 determinístico do gerador pra `ouroboros.core`; mais de 1 beatmap Osu! real
 (só `demo_track_osu` — `second_track` continua só lane-mode).
+
+## Fase 5 — Primitivas vetoriais de UI e fontes (M16) — concluído
+
+Pedido vindo de um produto novo, o **Karmabound** (torneio por turnos com uma
+roleta em forma de mandala de selos com kanji, envolta por correntes). A tela
+dele precisa de círculos, arcos, linhas e polígonos em coordenadas de tela, e
+de texto em kanji com uma fonte de pincel. O `IRenderer` não tinha nenhuma das
+duas coisas: `draw_batch` só aproximaria formas com sprites, e `draw_text`
+usava sempre a fonte padrão do backend, sem glifos CJK.
+
+1. **`load_font(font_id, file_path)`** e **`draw_text(..., font_id=None)`**
+   (`ouroboros/interfaces/renderer.py`): mesmo modelo de `load_texture` —
+   registra o arquivo sob um inteiro; um `font_id` nunca carregado cai na
+   fonte padrão. **Não é abstrato** (fonte é apresentação, como `draw_text`),
+   então todo backend existente continua válido. `font_id` é parâmetro
+   opcional no fim da assinatura: chamadas antigas não mudam.
+2. **`draw_ui_line/circle/arc/polygon`**: mesma família de `draw_ui_rect` —
+   coordenadas de TELA, alpha respeitado, sem camera offset, só na camada de
+   cenas/UI, default no-op. Arco em radianos, 0 = direita, anti-horário como
+   visto na tela.
+3. **`PygameRenderer`**: cache de fontes passou de `{tamanho}` para
+   `{(font_id, tamanho)}` e o de texto ganhou `font_id` na chave; `load_font`
+   invalida só as entradas daquela fonte. Primitivas opacas desenham direto;
+   translúcidas passam por uma `SRCALPHA` do tamanho da caixa da forma.
+   Antialiasing em linha fina, círculo e contorno de polígono.
+4. **`NullRenderer`** registra fontes em `_loaded_fonts` (espelho de
+   `_loaded_textures`) e herda os no-ops das primitivas.
+
+Achado durante os testes: o pygame-ce **aceita abrir** um arquivo que não é
+fonte e só falha no primeiro `render`. `load_font` renderiza um glifo ao
+carregar, para o erro aparecer no carregamento e não no meio de um frame.
+
+Compatibilidade verificada nos consumidores: `HBPygameRenderer` (Hertz &
+Beats) herda de `PygameRenderer` mas usa fontes próprias, sem tocar no cache
+interno; os renderers falsos dos testes do Penumbra sobrescrevem `draw_text`
+sem `font_id`, o que continua válido porque nenhum chamador deles passa o
+parâmetro.
+
+Verificado: 12 testes novos (`tests/interfaces/test_ui_primitives.py`, lendo
+pixels da tela real sob o driver dummy: preenchido vs. contorno, alpha,
+convenção do arco, polígono, formas degeneradas, troca de fonte, fallback de
+id desconhecido, arquivo inválido, `NullRenderer`) + suíte completa (605
+testes, todos passando). `lint-imports` não rodou localmente (não instalado);
+as mudanças só tocam `ouroboros.interfaces` (importa `typing`) e
+`ouroboros.adapters` (importa `math`), sem import novo entre camadas.
+
+Fora de escopo: texto rotacionado; espessura em linha antialiasada; curvas de
+Bézier; gradientes; versão nova do pacote (fica em 0.2.2 até a próxima
+release).

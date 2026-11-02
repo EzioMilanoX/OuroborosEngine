@@ -5,7 +5,8 @@
 """Implementacao concreta de IRenderer sobre pygame (formas, alpha, texto)."""
 from __future__ import annotations
 
-from typing import Dict, Tuple
+import math
+from typing import Dict, Optional, Sequence, Tuple
 
 import numpy as np
 import pygame
@@ -35,9 +36,17 @@ class PygameRenderer(IRenderer):
     formas translucidas passam por uma superficie SRCALPHA temporaria
     (custo pago so por quem usa alpha).
 
-    Texto (ROADMAP M2): `draw_text` cacheia fontes por tamanho e
-    superficies por (texto, tamanho, cor), com teto de cache -- chamavel
-    apenas da camada de cenas/UI, nunca de ISystem.update().
+    Texto (ROADMAP M2): `draw_text` cacheia fontes por (fonte, tamanho) e
+    superficies por (texto, tamanho, cor, fonte), com teto de cache --
+    chamavel apenas da camada de cenas/UI, nunca de ISystem.update().
+    `load_font` (ROADMAP M16) so registra o caminho; o `pygame.font.Font`
+    de cada tamanho e aberto no primeiro uso.
+
+    Primitivas vetoriais de UI (ROADMAP M16): `draw_ui_line/circle/arc/
+    polygon` desenham direto na tela quando opacas e passam por uma
+    superficie SRCALPHA do tamanho da caixa da forma quando translucidas,
+    o mesmo trato de `draw_ui_rect`. Usam antialiasing onde o pygame-ce
+    oferece (linha fina, circulo, contorno de poligono).
 
     Texturas (ROADMAP M3): `load_texture` cacheia a imagem crua por
     `texture_id`; `_draw_shape` resolve um `texture_id`/`kind` carregado
@@ -54,7 +63,8 @@ class PygameRenderer(IRenderer):
         self._height = 0
         self._cam_dx = 0.0
         self._cam_dy = 0.0
-        self._fonts: Dict[int, pygame.font.Font] = {}
+        self._fonts: Dict[tuple, pygame.font.Font] = {}
+        self._font_paths: Dict[int, str] = {}
         self._text_cache: Dict[tuple, pygame.Surface] = {}
         self._textures: Dict[int, pygame.Surface] = {}
         self._texture_scale_cache: Dict[tuple, pygame.Surface] = {}
@@ -297,16 +307,36 @@ class PygameRenderer(IRenderer):
         tmp.fill(rgba)
         self._surface.blit(tmp, (int(x), int(y)))
 
+    def load_font(self, font_id: int, file_path: str) -> None:
+        # O pygame-ce aceita abrir um arquivo que nao e fonte e so falha no
+        # primeiro render; renderizar aqui faz o erro aparecer no carregamento.
+        pygame.font.Font(file_path, 12).render("A", True, (0, 0, 0))
+        self._font_paths[font_id] = file_path
+        self._fonts = {k: f for k, f in self._fonts.items() if k[0] != font_id}
+        self._text_cache = {k: s for k, s in self._text_cache.items() if k[3] != font_id}
+
+    def _font(self, font_id: Optional[int], size: int) -> pygame.font.Font:
+        if font_id not in self._font_paths:
+            font_id = None  # id nunca carregado: fonte padrao, como em load_texture
+        font = self._fonts.get((font_id, size))
+        if font is None:
+            if font_id is None:
+                font = pygame.font.SysFont("consolas", size, bold=True)
+            else:
+                font = pygame.font.Font(self._font_paths[font_id], size)
+            self._fonts[(font_id, size)] = font
+        return font
+
     def draw_text(self, x: float, y: float, text: str, size: int,
                   rgba: Tuple[int, int, int, int],
-                  anchor: str = "topleft") -> None:
+                  anchor: str = "topleft",
+                  font_id: Optional[int] = None) -> None:
         if not text:
             return
-        font = self._fonts.get(size)
-        if font is None:
-            font = pygame.font.SysFont("consolas", size, bold=True)
-            self._fonts[size] = font
-        key = (text, size, rgba[:3])
+        if font_id not in self._font_paths:
+            font_id = None
+        font = self._font(font_id, size)
+        key = (text, size, rgba[:3], font_id)
         rendered = self._text_cache.get(key)
         if rendered is None:
             if len(self._text_cache) >= _TEXT_CACHE_MAX:
@@ -324,6 +354,71 @@ class PygameRenderer(IRenderer):
         else:
             rect.topleft = (int(x), int(y))
         self._surface.blit(rendered, rect)
+
+    def _ui_target(self, rgba, left: float, top: float, right: float, bottom: float):
+        """Superficie onde desenhar uma primitiva de UI e o deslocamento a
+        subtrair das coordenadas. Opaca: a propria tela, sem deslocamento.
+        Translucida: uma SRCALPHA do tamanho da caixa, composta por
+        `_ui_commit`."""
+        if rgba[3] >= 255:
+            return self._surface, 0, 0
+        ox, oy = int(math.floor(left)) - 1, int(math.floor(top)) - 1
+        w = int(math.ceil(right)) - ox + 2
+        h = int(math.ceil(bottom)) - oy + 2
+        return pygame.Surface((max(1, w), max(1, h)), pygame.SRCALPHA), ox, oy
+
+    def _ui_commit(self, target: pygame.Surface, ox: int, oy: int) -> None:
+        if target is not self._surface:
+            self._surface.blit(target, (ox, oy))
+
+    def draw_ui_line(self, x1: float, y1: float, x2: float, y2: float,
+                     rgba: Tuple[int, int, int, int], width: int = 1) -> None:
+        pad = width / 2
+        target, ox, oy = self._ui_target(rgba, min(x1, x2) - pad, min(y1, y2) - pad,
+                                         max(x1, x2) + pad, max(y1, y2) + pad)
+        a, b = (x1 - ox, y1 - oy), (x2 - ox, y2 - oy)
+        if width <= 1:
+            pygame.draw.aaline(target, rgba, a, b)
+        else:
+            pygame.draw.line(target, rgba, a, b, width)
+        self._ui_commit(target, ox, oy)
+
+    def draw_ui_circle(self, x: float, y: float, radius: float,
+                       rgba: Tuple[int, int, int, int], width: int = 0) -> None:
+        if radius <= 0:
+            return
+        target, ox, oy = self._ui_target(rgba, x - radius, y - radius, x + radius, y + radius)
+        aacircle = getattr(pygame.draw, "aacircle", pygame.draw.circle)
+        aacircle(target, rgba, (x - ox, y - oy), radius, width)
+        self._ui_commit(target, ox, oy)
+
+    def draw_ui_arc(self, x: float, y: float, radius: float,
+                    start_rad: float, end_rad: float,
+                    rgba: Tuple[int, int, int, int], width: int = 1) -> None:
+        if radius <= 0:
+            return
+        target, ox, oy = self._ui_target(rgba, x - radius, y - radius, x + radius, y + radius)
+        rect = pygame.Rect(0, 0, int(radius * 2), int(radius * 2))
+        rect.center = (round(x - ox), round(y - oy))
+        pygame.draw.arc(target, rgba, rect, start_rad, end_rad, max(1, width))
+        self._ui_commit(target, ox, oy)
+
+    def draw_ui_polygon(self, points: Sequence[Tuple[float, float]],
+                        rgba: Tuple[int, int, int, int], width: int = 0) -> None:
+        if len(points) < 3:
+            return
+        xs = [p[0] for p in points]
+        ys = [p[1] for p in points]
+        target, ox, oy = self._ui_target(rgba, min(xs), min(ys), max(xs), max(ys))
+        local = [(px - ox, py - oy) for px, py in points]
+        if width == 0:
+            pygame.draw.polygon(target, rgba, local)
+            pygame.draw.aalines(target, rgba, True, local)  # borda lisa
+        elif width == 1:
+            pygame.draw.aalines(target, rgba, True, local)
+        else:
+            pygame.draw.polygon(target, rgba, local, width)
+        self._ui_commit(target, ox, oy)
 
     def end_frame(self) -> None:
         pygame.display.flip()

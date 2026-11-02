@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Tuple
+from typing import Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -100,14 +100,52 @@ class IRenderer(ABC):
 
     def draw_text(self, x: float, y: float, text: str, size: int,
                   rgba: Tuple[int, int, int, int],
-                  anchor: str = "topleft") -> None:
+                  anchor: str = "topleft",
+                  font_id: Optional[int] = None) -> None:
         """Desenha texto em coordenadas de TELA (ignora camera offset).
-        `anchor`: topleft | center | topright. Default: no-op."""
+        `anchor`: topleft | center | topright. `font_id`: fonte carregada
+        por `load_font`; `None` ou um id nunca carregado usa a fonte padrao
+        do backend (mesmo fallback de `load_texture`). Default: no-op."""
+
+    def load_font(self, font_id: int, file_path: str) -> None:
+        """Registra o arquivo de fonte `file_path` (TTF/OTF) sob `font_id`,
+        fora do loop de gameplay. Existe para produtos com alfabeto ou
+        identidade visual que a fonte padrao nao cobre (kanji, caligrafia).
+        Diferente de `load_texture`, NAO e abstrato: fonte e camada de
+        apresentacao, e um backend sem texto continua valido. Default: no-op."""
 
     def draw_ui_rect(self, x: float, y: float, w: float, h: float,
                      rgba: Tuple[int, int, int, int]) -> None:
         """Retangulo de UI/overlay com alpha, em coordenadas de tela
         (paineis de menu, telegraphs, escurecimento). Default: no-op."""
+
+    # Primitivas vetoriais de UI: mesma familia de `draw_ui_rect` --
+    # coordenadas de TELA, alpha respeitado, sem camera offset, chamadas
+    # so da camada de cenas/UI. Existem para interfaces desenhadas (rodas,
+    # medidores circulares, selos, correntes) que `draw_batch` so
+    # aproximaria com sprites. Default: no-op.
+
+    def draw_ui_line(self, x1: float, y1: float, x2: float, y2: float,
+                     rgba: Tuple[int, int, int, int], width: int = 1) -> None:
+        """Segmento de reta de `(x1, y1)` a `(x2, y2)`. Default: no-op."""
+
+    def draw_ui_circle(self, x: float, y: float, radius: float,
+                       rgba: Tuple[int, int, int, int], width: int = 0) -> None:
+        """Circulo centrado em `(x, y)`. `width=0` preenche; `width>0`
+        desenha so o contorno com essa espessura. Default: no-op."""
+
+    def draw_ui_arc(self, x: float, y: float, radius: float,
+                    start_rad: float, end_rad: float,
+                    rgba: Tuple[int, int, int, int], width: int = 1) -> None:
+        """Arco de circulo centrado em `(x, y)`, de `start_rad` a `end_rad`.
+        Angulos em radianos, 0 = direita, crescendo no sentido ANTI-HORARIO
+        como visto na tela (convencao matematica, nao a do eixo y de tela).
+        Default: no-op."""
+
+    def draw_ui_polygon(self, points: Sequence[Tuple[float, float]],
+                        rgba: Tuple[int, int, int, int], width: int = 0) -> None:
+        """Poligono pelos vertices `points` (3 ou mais). `width=0` preenche;
+        `width>0` desenha so o contorno. Default: no-op."""
 
     def set_camera_offset(self, dx: float, dy: float) -> None:
         """Deslocamento aplicado as posicoes de draw_batch (screen shake).

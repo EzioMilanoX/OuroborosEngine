@@ -28,6 +28,7 @@ class NullRenderer(IRenderer):
         self.draw_effects_calls = []
         self.draw_particles_calls = []
         self._loaded_textures = {}
+        self._loaded_fonts = {}
         self._is_fullscreen = False
         self.camera_offset = (0.0, 0.0)
 
@@ -77,6 +78,9 @@ class NullRenderer(IRenderer):
 
     def load_texture(self, texture_id: int, file_path: str) -> None:
         self._loaded_textures[texture_id] = file_path
+
+    def load_font(self, font_id: int, file_path: str) -> None:
+        self._loaded_fonts[font_id] = file_path
 
     def end_frame(self) -> None:
         self.end_frame_count += 1
