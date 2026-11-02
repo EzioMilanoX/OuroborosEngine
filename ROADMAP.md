@@ -665,3 +665,20 @@ as mudanças só tocam `ouroboros.interfaces` (importa `typing`) e
 Fora de escopo: texto rotacionado; espessura em linha antialiasada; curvas de
 Bézier; gradientes; versão nova do pacote (fica em 0.2.2 até a próxima
 release).
+
+## Fase 6 — Volume da faixa (M17) — concluído
+
+Pedido do **Karmabound**, que ganhou música (faixas sintetizadas em loop) e uma
+tela de opções com volume. Os efeitos já tinham volume por disparo
+(`play_one_shot(volume=...)`); a faixa em stream não tinha como baixar.
+
+1. **`IAudioEngine.set_track_volume(volume)`**: 0.0 (mudo) a 1.0, limitado;
+   vale para a faixa atual e para as próximas `play_track`. **Não é abstrato**
+   (default no-op, como `register_tone`): todo backend existente continua válido.
+2. **`PygameAudioEngine`** guarda o volume e o reaplica a cada `play_track`,
+   porque carregar outra faixa no `pygame.mixer.music` pode voltar ao volume cheio.
+3. **`NullAudioEngine`** registra o volume em `_track_volume`, para inspeção em teste.
+
+Verificado: 3 testes novos (`tests/interfaces/test_track_volume.py`: default
+no-op, limites no Null, pygame sob driver dummy mantendo o volume entre faixas)
++ suíte completa (608 testes, todos passando).

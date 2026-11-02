@@ -66,6 +66,18 @@ class IAudioEngine(ABC):
         ...
 
     # ------------------------------------------------------------------
+    # Volume da faixa (ROADMAP M17): NAO-abstrato com default no-op, como
+    # `register_tone` — backends existentes continuam validos. O volume dos
+    # efeitos ja e por disparo (`play_one_shot(volume=...)`); a faixa em
+    # stream nao tinha como baixar.
+    # ------------------------------------------------------------------
+
+    def set_track_volume(self, volume: float) -> None:
+        """Volume da faixa musical, de 0.0 (mudo) a 1.0 (cheio); vale para a
+        faixa atual e para as proximas `play_track`. Valores fora do intervalo
+        sao limitados. Default: no-op."""
+
+    # ------------------------------------------------------------------
     # SFX procedural (ROADMAP M4): metodo NAO-abstrato com default no-op —
     # permite jogos sem assets de audio sintetizarem efeitos curtos.
     # Chamado na composicao/cena (fora do loop de gameplay).

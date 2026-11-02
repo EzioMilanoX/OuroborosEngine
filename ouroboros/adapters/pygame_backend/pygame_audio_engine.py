@@ -31,6 +31,7 @@ class PygameAudioEngine(IAudioEngine):
         self._loaded_tracks = {}
         self._current_track_id = None
         self._sounds = {}
+        self._track_volume = 1.0
 
     def load_track(self, track_id: str, file_path: str) -> None:
         self._loaded_tracks[track_id] = file_path
@@ -38,6 +39,7 @@ class PygameAudioEngine(IAudioEngine):
     def play_track(self, track_id: str, start_offset_seconds: float = 0.0, loop: bool = False) -> None:
         file_path = self._loaded_tracks[track_id]
         pygame.mixer.music.load(file_path)
+        pygame.mixer.music.set_volume(self._track_volume)  # carregar outra faixa pode resetar
         pygame.mixer.music.play(loops=-1 if loop else 0, start=start_offset_seconds)
         self._clock._set_start_offset(start_offset_seconds)
         self._clock._resume()  # limpa qualquer estado de pausa remanescente de uma reproducao anterior
@@ -57,6 +59,10 @@ class PygameAudioEngine(IAudioEngine):
         if self._current_track_id == track_id:
             pygame.mixer.music.unpause()
             self._clock._resume()
+
+    def set_track_volume(self, volume: float) -> None:
+        self._track_volume = max(0.0, min(1.0, float(volume)))
+        pygame.mixer.music.set_volume(self._track_volume)
 
     def load_sound(self, sound_id: str, file_path: str) -> None:
         self._sounds[sound_id] = pygame.mixer.Sound(file_path)

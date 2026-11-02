@@ -25,9 +25,14 @@ class NullAudioEngine(IAudioEngine):
         self._one_shots_played = []
         self._loaded_sounds = {}
         self._registered_tones = {}
+        self._track_volume = 1.0
 
     def load_track(self, track_id: str, file_path: str) -> None:
         self._loaded_tracks[track_id] = file_path
+
+    def set_track_volume(self, volume: float) -> None:
+        """Registra o volume (para inspecao em teste), limitado a [0, 1]."""
+        self._track_volume = max(0.0, min(1.0, float(volume)))
 
     def load_sound(self, sound_id: str, file_path: str) -> None:
         self._loaded_sounds[sound_id] = file_path
