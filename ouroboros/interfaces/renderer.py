@@ -147,6 +147,16 @@ class IRenderer(ABC):
         """Poligono pelos vertices `points` (3 ou mais). `width=0` preenche;
         `width>0` desenha so o contorno. Default: no-op."""
 
+    def draw_ui_image(self, texture_id: int, x: float, y: float, *,
+                      anchor: Tuple[float, float] = (0.5, 0.5), flip_x: bool = False,
+                      alpha: int = 255, scale: float = 1.0) -> None:
+        """Desenha a textura `texture_id` (ja carregada por `load_texture`) em
+        coordenadas de TELA, como as outras primitivas de UI (ROADMAP M18).
+        `anchor` e a fracao da imagem que cai em `(x, y)`: (0.5, 0.5) centro,
+        (0.5, 1.0) o meio da base (pes de um personagem). `flip_x` espelha na
+        horizontal; `alpha` 0..255; `scale` multiplica o tamanho. Textura
+        desconhecida nao desenha nada. Default: no-op."""
+
     def set_camera_offset(self, dx: float, dy: float) -> None:
         """Deslocamento aplicado as posicoes de draw_batch (screen shake).
         Nao afeta draw_text/draw_ui_rect. Default: no-op."""

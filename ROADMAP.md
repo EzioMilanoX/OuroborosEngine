@@ -682,3 +682,50 @@ tela de opções com volume. Os efeitos já tinham volume por disparo
 Verificado: 3 testes novos (`tests/interfaces/test_track_volume.py`: default
 no-op, limites no Null, pygame sob driver dummy mantendo o volume entre faixas)
 + suíte completa (608 testes, todos passando).
+
+## Fase 7 — Imagem na camada de UI (M18) — concluído
+
+Pedido do **Ryoiki**, que passou a pintar os chefes como sprites (gerados em 4x com
+contorno e sombreamento, reduzidos com suavização) e precisava desenhá-los em coordenadas
+de tela, junto das outras primitivas de UI. Até aqui textura só entrava por `draw_batch`.
+
+1. **`IRenderer.draw_ui_image(texture_id, x, y, *, anchor, flip_x, alpha, scale)`**:
+   desenha uma textura já carregada por `load_texture`. `anchor` é a fração da imagem que
+   cai em `(x, y)` (`(0.5, 1.0)` = os pés). **Não é abstrato** (default no-op): todo
+   backend existente continua válido.
+2. **`PygameRenderer`** cacheia cada variação (espelho, escala) em
+   `_texture_scale_cache`, para não refazer `flip`/`smoothscale` a cada quadro.
+
+Verificado: 5 testes novos (`tests/interfaces/test_ui_image.py`: âncora nos pés, espelho,
+escala e alfa, textura desconhecida, default no-op) + suíte completa passando.
+
+## Fase 8 — Vários estilos de arte (M19–M22) — planejada
+
+Pedido do Enzo depois dos sprites do Ryoiki: a engine deve servir bem a **quatro estilos**
+(ilustração cel-shading, pixel art, tinta/sumi-e e flat vetorial com luz), priorizando
+**desempenho, pipeline de arte e câmera/projeções**, com a GPU como **backend novo e
+opcional** (nenhum dos jogos atuais muda sem pedir).
+
+**Medição que orienta a ordem (2026-11-11):** reaproveitar superfícies translúcidas de UI
+no backend pygame (em vez de criar uma por chamada) ficou ~45% *mais lento* (0,060 contra
+0,042 ms por trio círculo + polígono + retângulo): criar uma Surface pequena já zerada é
+barato, limpar uma reaproveitada custa mais. Foi revertido. O ganho de desempenho de
+verdade está em desenhar na GPU (M21), não em micro-otimizar o backend de CPU.
+
+1. **M19 — Pipeline de arte.** Spritesheet/atlas (um PNG + JSON, compatível com o JSON do
+   Aseprite); `Animacao` (quadros, fps, laço, eventos por quadro, ex.: "impacto");
+   filtro por textura: `suave` (ilustração) ou `nitido` (pixel art: escala por vizinho mais
+   próximo, só múltiplos inteiros); troca de paleta para pixel art. Generalizar o
+   `Pintor` do Ryoiki (`tools/gerar_sprites.py`: peças com contorno, sombra e brilho por
+   máscara, 4x reduzido) como ferramenta da engine para gerar arte cel-shading.
+2. **M20 — Câmera e projeções.** `Projecao` com `tela_de(x, y, z)` / `mundo_de`:
+   de cima, 3/4 (achata o chão, como o Ryoiki faz hoje), isométrica; e uma fila de
+   desenho por profundidade (y, depois z) para figuras em pé, sombras e projéteis.
+3. **M21 — Backend GPU opcional** (`pygame._sdl2.video`: `Renderer`/`Texture`): o mesmo
+   `IRenderer` com as primitivas de UI e `draw_ui_image` na GPU; escala, rotação e
+   transparência quase de graça; modos de mistura (aditivo, multiplicar). Cada jogo
+   escolhe o backend no `EngineConfig`; medir com o mesmo benchmark acima.
+4. **M22 — Estilos.** Tinta/sumi-e: traço de pincel com espessura variável e textura
+   (manchas, respingos); flat com luz: brilho aditivo e bloom (camada fora da tela
+   borrada); cel-shading e pixel art já cobertos por M19.
+

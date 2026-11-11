@@ -420,6 +420,32 @@ class PygameRenderer(IRenderer):
             pygame.draw.polygon(target, rgba, local, width)
         self._ui_commit(target, ox, oy)
 
+    def draw_ui_image(self, texture_id: int, x: float, y: float, *,
+                      anchor: Tuple[float, float] = (0.5, 0.5), flip_x: bool = False,
+                      alpha: int = 255, scale: float = 1.0) -> None:
+        base = self._textures.get(texture_id)
+        if base is None or alpha <= 0:
+            return
+        chave = ("ui", texture_id, flip_x, round(scale, 3))
+        img = self._texture_scale_cache.get(chave)
+        if img is None:  # espelhar e escalar uma vez so por variacao
+            img = base
+            if scale != 1.0:
+                w = max(1, int(round(base.get_width() * scale)))
+                h = max(1, int(round(base.get_height() * scale)))
+                img = pygame.transform.smoothscale(img, (w, h))
+            if flip_x:
+                img = pygame.transform.flip(img, True, False)
+            self._texture_scale_cache[chave] = img
+        px = int(round(x - img.get_width() * anchor[0]))
+        py = int(round(y - img.get_height() * anchor[1]))
+        if alpha >= 255:
+            self._surface.blit(img, (px, py))
+        else:
+            tmp = img.copy()
+            tmp.set_alpha(int(alpha))
+            self._surface.blit(tmp, (px, py))
+
     def end_frame(self) -> None:
         pygame.display.flip()
 
