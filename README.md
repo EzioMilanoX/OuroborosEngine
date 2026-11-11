@@ -36,8 +36,8 @@ grid/pathfinding/turno, e um modelo de dados sem ECS.
   `python -m games.card_game.main`.
 - **Vitrine de estilos** (`games/vitrine_estilos/`) — a mesma cena (um espadachim sob a
   lua, ao lado de um torii, dando um corte) em ilustracao cel-shading, pixel art,
-  tinta/sumi-e e flat com luz, pintada ao abrir e mostrada com `draw_ui_image` (M18).
-  Grade 2x2 para comparar; 1-4 abre um estilo, G volta, A/D troca. Rodar com
+  tinta/sumi-e, flat com luz e low poly 3D, pintada ao abrir e mostrada com `draw_ui_image` (M18).
+  Grade 3x2 para comparar; 1-5 abre um estilo, G volta, A/D troca. Rodar com
   `python -m games.vitrine_estilos.main`.
 
 ## A Constituicao da Engine

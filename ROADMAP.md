@@ -735,3 +735,101 @@ para escolher o rumo antes de M19–M22. Hoje cada estilo é pintado pelo própr
 (o pintor cel-shading, o filtro nítido, o pincel, o bloom) passa para dentro da engine e a
 vitrine vira o teste visual de cada um.
 
+**Pesquisa de técnicas (2026-11-11), já aplicada na vitrine** (cada uma vira peça da
+engine em M19/M22):
+
+- *Cel-shading:* a sombra puxa a cor para o frio, não para o preto (a "troca de matiz",
+  como nas notas de render ilustrativo do Team Fortress 2); a luz de recorte contorna a
+  silhueta do lado da luz de trás; tons chapados, sem degradê; contorno externo mais
+  grosso que as linhas internas; sombra de contato nos pés.
+- *Pixel art:* rampas de cor com o matiz girando (sombra para o azul/roxo, luz para o
+  amarelo); contorno seletivo (o tom mais escuro da própria peça, não preto);
+  pontilhado ordenado (Bayer) para transições; paleta curta; ampliar só por vizinho mais
+  próximo; o movimento menor que um pixel se faz trocando cores, não posição.
+- *Sumi-e:* o pincel como um feixe de cerdas que muda ao longo do traço (modelo de
+  Strassmann, 1986): pressão, falhas de pincel seco, cerdas soltas; a tinta se espalha
+  nas fibras (difusão; os modelos sérios usam autômatos celulares); o grão do papel
+  multiplica a tinta.
+- *Flat com luz:* bloom = recortar o que brilha (limiar com joelho suave), borrar numa
+  pirâmide de reduções (dual Kawase, mais barato que o gaussiano largo) e somar; a
+  aberração cromática entra por último; o chão molhado espelha a luz.
+
+## Fase 9 — 3D (estudo; nada implementado)
+
+**Como as engines 3D se organizam.** O Godot é o exemplo mais claro: três camadas,
+*cena* (a árvore de nós), *servidores* (renderização, física, áudio: singletons que
+devolvem identificadores opacos, os RIDs) e *drivers*. No 3D, tudo que aparece é um
+recurso (malha, material) mais uma instância dentro de um "cenário", vista por uma câmera
+num viewport; no 2D o papel do cenário é o do canvas. A OuroborosEngine já tem a mesma
+forma: núcleo ECS em cima, interfaces (`IRenderer`) no meio, adaptadores (pygame) embaixo.
+Um 3D aqui seria um "servidor de render 3D" atrás de uma interface nova, não um remendo
+no `IRenderer` 2D.
+
+**Opções em Python.**
+- *Panda3D:* maduro (Disney/CMU), núcleo em C++, grafo de cena próprio, licença BSD.
+- *Ursina:* por cima do Panda3D, entidades simples, MIT; mais fácil, menos maduro.
+- *ModernGL:* OpenGL 3.3 puro (shaders, framebuffers, texturas): nada pronto, controle
+  total; casa com o pygame-ce (o pygame cuida da janela e da entrada, o GL desenha).
+  Efeitos em cadeia = um framebuffer por passo, a saída de um vira a entrada do próximo.
+  Risco: empacotar com PyInstaller e exigir OpenGL 3.3.
+- *Godot* (GDScript/C#, não Python): o caminho se um jogo for 3D de verdade.
+
+**3D com cara de 2D** (o que o Ryoiki ganharia): no Guilty Gear Xrd, o contorno é um
+*casco invertido* (a malha empurrada pelas normais, com a espessura corrigida na tela),
+o sombreamento é um degrau (duas cores, aceso ou não), as normais são editadas à mão para
+a sombra cair como num desenho, as linhas internas vão pintadas na textura e cada
+personagem tem a própria luz.
+
+**Leitura para a OuroborosEngine** (a decidir com o Enzo):
+1. **Recomendado:** fazer o M21 (GPU) com ModernGL. Ele já entrega shaders para os
+   quatro estilos (bloom de verdade, toon, tinta) e é a base de qualquer 3D depois.
+2. Uma camada 3D própria sobre ModernGL (malha, câmera em perspectiva, toon com casco
+   invertido), convivendo com o ECS: grande, mas mantém o Data-Oriented e o Zero-GC.
+3. Usar Panda3D/Ursina como backend: 3D rápido, mas com grafo de cena próprio
+   brigando com o ECS e sem o controle de memória que a engine promete.
+4. Para um projeto que precise de 3D pleno: Godot, e a OuroborosEngine segue 2D/2.5D.
+
+**Prova de polígonos (2026-11-11): o 5º estilo da vitrine, low poly, é 3D de verdade**
+(`arte._cena_3d` + `arte._render_3d`, só numpy e polígonos do pygame, ~700 triângulos):
+malhas de triângulos, câmera em perspectiva que passeia, uma cor por face (normal contra a
+luz, sombra puxada para o frio), neblina pela distância, descarte de faces de costas e o
+algoritmo do pintor (do longe ao perto). O que ela ensinou:
+- **Funciona na CPU para poucos triângulos e quadros pré-pintados** (12 quadros em <1 s).
+  Em tempo real e com muitos triângulos, não: precisa de GPU (z-buffer, M21).
+- **Triângulo que cruza a câmera some inteiro** sem recorte no plano próximo; o chão teve
+  de virar ladrilhos. Uma camada 3D séria precisa recortar triângulos (clipping).
+- **O pintor erra quando faces se cruzam** (ordenar pela profundidade média não basta);
+  na GPU o z-buffer resolve por pixel.
+- **Utilidade mais imediata: 3D para virar sprite** (o que Dead Cells faz): modelar um
+  personagem uma vez em polígonos e renderizar todos os ângulos e quadros como sprites,
+  com o estilo que quiser (cel, pixel). Para o Ryoiki, isso daria o feiticeiro e os
+  chefes em 8 direções sem desenhar cada uma.
+
+**Animação na vitrine (2026-11-11):** 12 quadros a 8 qps davam um golpe travado (4 quadros
+para o corte inteiro e volta seca para a guarda). Agora são 48 quadros a 24 qps, e a pose
+é função do tempo (`pose_t`), com os princípios clássicos: respira em guarda, **antecipa**
+(a espada recua e o corpo abaixa), **corta** rápido desacelerando no fim (ease-out),
+**segura** o golpe enquanto o rastro se desfaz e **volta** suave (ease-in-out); o laço
+fecha sem salto. No sumi-e o traço muda de 4 em 4 quadros (o "tremor de mão" das animações
+desenhadas), em vez de a cada quadro. Para não pesar a abertura, o cel-shading pinta só a
+região do personagem, o fundo do pixel art é pintado uma vez, e os quadros ficam num cache
+em disco por estilo, refeito só quando `arte.py` muda (1ª abertura ~14 s, depois ~1,5 s).
+Isso é o embrião do M19: `Animacao` por tempo com curvas e eventos, e cache de arte gerada.
+
+
+**3D da vitrine em módulo próprio (2026-11-11):** `games/vitrine_estilos/tres_d.py`. Malhas
+fechadas agora são viradas para fora de verdade (antes as caixas tinham as normais invertidas e o
+culling mostrava as faces de trás — passava despercebido por serem convexas, mas quebraria com
+z-buffer). Luz por vértice (hemisférica + direcional + pontual + foco), como o PS1 e as GPUs antigas.
+- **lowpoly:** luz de três pontos (chave quente por trás, preenchimento frio), sombras projetadas no
+  chão ao longo da luz (uma camada multiplicada, sem escurecer duas vezes), lanternas de pedra que
+  acendem o entorno, pinheiros, vaga-lumes, brilho no que emite luz; pintor em camadas
+  (fundo → chão → sombras → objetos).
+- **terror (PS1):** 320×180 ampliado 3× sem suavizar; vértices grudados no pixel inteiro (o tremor);
+  **z-buffer por pixel em numpy** com cor Gouraud afim (sem correção de perspectiva); neblina preta
+  pela profundidade; cor de 15 bits com Bayer; grão e vinheta; só a lanterna ilumina, e ela falha.
+  ~0,1 s por quadro na CPU. Por que funciona como terror: a baixa resolução e a neblina deixam
+  lacunas que o jogador preenche com o pior; o tremor faz o mundo parecer instável; rostos de
+  poucos polígonos caem no estranho.
+- O z-buffer daqui é o núcleo do que um backend 3D (M21, ModernGL) faria na GPU: mesmas entradas
+  (malha, câmera, luz por vértice), saída por pixel.

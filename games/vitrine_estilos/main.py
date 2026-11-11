@@ -4,13 +4,13 @@
 
 """
 Vitrine de estilos (ROADMAP fase 8): a mesma cena em ilustracao cel-shading, pixel art,
-tinta/sumi-e e flat com luz, para comparar o que a engine pode mostrar.
+tinta/sumi-e, flat com luz e low poly 3D, para comparar o que a engine pode mostrar.
 
 Rodar a partir da raiz do repositorio:
 
     python -m games.vitrine_estilos.main
 
-Controles: 1-4 abre um estilo em tela cheia, G volta para a grade, A/D troca, ESC sai.
+Controles: 1-5 abre um estilo em tela cheia, G volta para a grade, A/D troca, ESC sai.
 """
 from __future__ import annotations
 
