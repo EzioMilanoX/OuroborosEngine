@@ -729,3 +729,9 @@ verdade está em desenhar na GPU (M21), não em micro-otimizar o backend de CPU.
    (manchas, respingos); flat com luz: brilho aditivo e bloom (camada fora da tela
    borrada); cel-shading e pixel art já cobertos por M19.
 
+**Vitrine (2026-11-11):** `games/vitrine_estilos/` mostra os quatro estilos na mesma cena,
+para escolher o rumo antes de M19–M22. Hoje cada estilo é pintado pelo próprio jogo
+(`arte.py`) e só exibido pela engine; conforme M19–M22 saírem, o que cada estilo usa
+(o pintor cel-shading, o filtro nítido, o pincel, o bloom) passa para dentro da engine e a
+vitrine vira o teste visual de cada um.
+

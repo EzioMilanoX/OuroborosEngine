@@ -1,0 +1,10 @@
+{
+  "estilo_1": "KEY_1",
+  "estilo_2": "KEY_2",
+  "estilo_3": "KEY_3",
+  "estilo_4": "KEY_4",
+  "grade": "KEY_G",
+  "anterior": "KEY_A",
+  "proximo": "KEY_D",
+  "sair": "KEY_ESCAPE"
+}
