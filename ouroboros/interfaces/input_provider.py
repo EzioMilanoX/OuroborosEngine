@@ -87,6 +87,16 @@ class IInputProvider(ABC):
         """
         return 0
 
+    def get_mouse_delta(self) -> Tuple[float, float]:
+        """Quanto o mouse andou desde o `poll()` anterior, em pixels (dx, dy) -- o que um
+        jogo em primeira pessoa usa para olhar em volta (ROADMAP M21). Continua valendo com o
+        cursor capturado (`set_mouse_captured`), quando a posicao do cursor fica parada.
+        Default: (0, 0)."""
+        return (0.0, 0.0)
+
+    def set_mouse_captured(self, captured: bool) -> None:
+        """Prende e esconde o cursor na janela (primeira pessoa) ou devolve. Default: no-op."""
+
     @abstractmethod
     def set_rumble(self, low_freq: float, high_freq: float, duration_sec: float) -> None:
         """Dispara vibracao (haptics/rumble) no controle fisico, se o

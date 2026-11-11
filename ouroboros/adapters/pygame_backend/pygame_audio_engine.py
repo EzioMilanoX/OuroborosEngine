@@ -75,6 +75,15 @@ class PygameAudioEngine(IAudioEngine):
         sound.set_volume(volume)
         sound.play()
 
+    def play_spatial(self, sound_id: str, volume: float = 1.0, pan: float = 0.0) -> None:
+        sound = self._sounds.get(sound_id)
+        if sound is None:
+            return
+        canal = sound.play()
+        if canal is not None:  # sem canal livre, o som so nao toca
+            pan = max(-1.0, min(1.0, pan))
+            canal.set_volume(volume * min(1.0, 1.0 - pan), volume * min(1.0, 1.0 + pan))
+
     def get_clock(self) -> IAudioClock:
         return self._clock
 

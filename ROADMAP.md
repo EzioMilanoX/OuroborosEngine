@@ -833,3 +833,42 @@ z-buffer). Luz por vértice (hemisférica + direcional + pontual + foco), como o
   poucos polígonos caem no estranho.
 - O z-buffer daqui é o núcleo do que um backend 3D (M21, ModernGL) faria na GPU: mesmas entradas
   (malha, câmera, luz por vértice), saída por pixel.
+
+## M21 — Render 3D na placa de vídeo (2026-11-11) — primeiro marco feito
+
+- **`IRenderer3D`** (`ouroboros/interfaces/renderer3d.py`): um servidor de render 3D separado do
+  `IRenderer` 2D, como recomendado na Fase 9. Malhas de triângulos com cor por vértice
+  (`criar_malha`/`atualizar_malha`), câmera em perspectiva, `Iluminacao3D` (hemisférica + até 8
+  luzes: direcional, pontual, foco) e `Estilo3D` (resolução interna, tremor, cor Gouraud/afim/chapada,
+  neblina, bits de cor com Bayer, grão, vinheta). `IRenderer.renderer_3d()` devolve o 3D do backend
+  (None no 2D).
+- **`GLRenderer`** (`ouroboros/adapters/gl_backend/`, ModernGL/OpenGL 3.3): herda o `PygameRenderer`;
+  as primitivas 2D vão para uma camada transparente que sobe como textura e sai **por cima** do 3D.
+  Escolhido com `"renderer": "gl"` no config; a ModernGL é opcional (extra `gl`), importada só nesse
+  caminho. O contrato de imports proíbe `moderngl` no núcleo e nas interfaces (3 contratos mantidos).
+- **Demo `games/terror_ps1`** (atalho "Terror PS1" na área de trabalho): a noite do torii em primeira
+  pessoa, com a lanterna seguindo o olhar, a pilha que gasta e falha (recarrega apagada) e o vulto que
+  só anda quando não está iluminado — um gosto do blueprint SEN-04 L.A.N.T.E.R.N.
+- **Medido:** a mesma cena (~6 mil triângulos, luz por vértice) em **2,75 ms por quadro** na Intel
+  RaptorLake integrada, contra ~100 ms no rasterizador de CPU da vitrine (~36×).
+- Testes: 5 do render (z-buffer, neblina × emissivo, cone da lanterna, matriz de modelo, 15 bits),
+  sem janela, com contexto standalone (pulam sem OpenGL); 6 das regras da demo.
+
+**M21, segunda leva (2026-11-11):**
+- `GLRenderer.set_fullscreen` via `toggle_fullscreen` (o SDL troca o modo sem recriar o contexto GL)
+  e imagem com tarjas pretas, sem distorcer; F11 na demo.
+- `IInputProvider.get_mouse_delta()` / `set_mouse_captured()` (opcionais; o pygame soma o
+  `MOUSEMOTION.rel` e prende/esconde o cursor): olhar com o mouse.
+- `IAudioEngine.play_spatial(id, volume, pan)` (opcional; o pygame usa o volume esquerdo/direito do
+  canal): a pista sonora de onde o vulto está.
+- Demo: colisão por círculos (troncos, pilares, lanternas, o espadachim); sons sintetizados
+  (`games/terror_ps1/sons.py`: passos, clique, galho que o vulto quebra, coração que acelera com ele
+  perto, zumbido em laço); poeira no ar que só aparece no feixe; o grão da imagem cresce com o vulto
+  perto; o vulto redesenhado (magro, dedos longos, cabeça alongada e tombada, olhos e boca escuros).
+  Continua em ~2,7 ms por quadro.
+
+**Próximos passos do M21:**
+1. Os construtores de malha (`bloco`, `cone`, `icosaedro`, `chao`) saem da vitrine para a engine.
+2. Recorte no plano próximo e materiais com textura (afim, como o PS1).
+3. Medir o custo da camada 2D (sobe 960×540 RGBA por quadro) e só subir quando mudar.
+4. Fatia vertical do SEN-04: a memória fora do cone (M.I.R.A.G.E.) e o perseguidor que ouve (S.H.A.D.O.W.).

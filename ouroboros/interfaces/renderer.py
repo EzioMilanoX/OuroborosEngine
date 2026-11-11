@@ -6,9 +6,12 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Optional, Sequence, Tuple
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from ouroboros.interfaces.renderer3d import IRenderer3D
 
 # Formas primitivas resolvidas por `texture_ids` enquanto nao ha pipeline
 # de texturas (ROADMAP M3): o backend concreto desenha a forma; ids acima
@@ -156,6 +159,12 @@ class IRenderer(ABC):
         (0.5, 1.0) o meio da base (pes de um personagem). `flip_x` espelha na
         horizontal; `alpha` 0..255; `scale` multiplica o tamanho. Textura
         desconhecida nao desenha nada. Default: no-op."""
+
+    def renderer_3d(self) -> Optional["IRenderer3D"]:
+        """O render 3D deste backend (ROADMAP M21), ou None se ele so faz 2D. Com 3D, a
+        UI 2D (`draw_ui_*`, `draw_text`) sai por cima do que foi desenhado em 3D.
+        Default: None."""
+        return None
 
     def set_camera_offset(self, dx: float, dy: float) -> None:
         """Deslocamento aplicado as posicoes de draw_batch (screen shake).

@@ -128,7 +128,13 @@ class CompositionRoot:
         """
         world = self.build_world(spatial_grid, tile_grid, gravity_y)
 
-        renderer = PygameRenderer()
+        if self._config.renderer == "gl":
+            # importado so aqui: a ModernGL e opcional (extra `gl`) e jogos 2D nao precisam dela
+            from ouroboros.adapters.gl_backend.gl_renderer import GLRenderer
+
+            renderer = GLRenderer()
+        else:
+            renderer = PygameRenderer()
         renderer.initialize(self._config.window_width, self._config.window_height, self._config.window_title)
 
         input_provider = PygameInputProvider()

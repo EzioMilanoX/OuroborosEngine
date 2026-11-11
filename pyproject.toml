@@ -12,6 +12,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+gl = [
+    "moderngl>=5.10",
+]
 dev = [
     "pytest>=8.0",
     "import-linter>=2.0",

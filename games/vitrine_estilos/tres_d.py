@@ -394,17 +394,34 @@ def _altura_terra(x: float, z: float) -> float:
 
 
 def vulto(x: float, z: float) -> List[Tri]:
-    """Alto demais, magro demais, bracos ate os joelhos e a cabeca torta: so aparece quando
-    a lanterna passa por ele."""
-    pal = (200, 196, 186)
-    tris = bloco((x, 0, z), 2.1, 0.2, 0.34, 0.2, pal)
-    tris += bloco((x, 2.05, z), 2.25, 0.07, 0.07, 0.07, pal)
-    for dx in (-0.23, 0.23):
-        tris += bloco((x + dx, 0.62, z), 2.05, 0.07, 0.1, 0.08, pal)
-    return tris + icosaedro((x + 0.09, 2.38, z), 0.16, pal, sub=1)
+    """Alto demais, magro demais, bracos ate abaixo dos joelhos, dedos compridos e a cabeca
+    alongada e torta, com olhos e boca escuros. Olha para +z (o jogo gira para o jogador)."""
+    pele, escuro = (150, 144, 132), (16, 10, 10)
+    tris: List[Tri] = []
+    for dx in (-0.09, 0.09):  # pernas finas
+        tris += bloco((x + dx, 0, z), 1.05, 0.07, 0.09, 0.08, pele)
+    tris += bloco((x, 1.0, z), 1.95, 0.2, 0.38, 0.16, pele)  # tronco: estreito embaixo, ombro largo
+    for dx in (-0.22, 0.22):  # bracos compridos demais
+        tris += bloco((x + dx, 0.55, z), 1.92, 0.05, 0.08, 0.06, pele)
+        for k in (-1, 0, 1):
+            tris += bloco((x + dx + k * 0.022, 0.36, z + 0.01), 0.56, 0.012, 0.014, 0.012, pele)
+    tris += bloco((x, 1.93, z), 2.22, 0.06, 0.055, 0.06, pele)  # pescoco comprido
+    cy = 2.38
+    cabeca = icosaedro((x, cy, z), 0.14, pele, sub=1)
+    cabeca = [tuple((p[0], cy + (p[1] - cy) * 1.45, p[2]) for p in t[:3]) + t[3:] for t in cabeca]
+    for dx in (-0.05, 0.05):  # os olhos
+        cabeca += bloco((x + dx, cy + 0.03, z + 0.13), cy + 0.08, 0.045, 0.04, 0.04, escuro)
+    cabeca += bloco((x, cy - 0.15, z + 0.12), cy - 0.04, 0.025, 0.035, 0.04, escuro)  # a boca, aberta
+    pivo = (x, 2.22, z)  # a cabeca tomba de lado
+    return tris + [tuple(_rot_z(p, pivo, 0.38) for p in t[:3]) + t[3:] for t in cabeca]
 
 
 def cena_terror(q: int) -> List[Tri]:
+    return cena_terror_estatica() + espadachim(pose(q), 2.7, -1.2, PALETA_TERROR) + vulto(*VULTO)
+
+
+def cena_terror_estatica(passo: float = 0.75) -> List[Tri]:
+    """O que nao se mexe: chao, torii, lanternas e pinheiros (o jogo em 3D tambem usa)."""
     rng = random.Random(13)
 
     def terra(x, z):
@@ -413,19 +430,34 @@ def cena_terror(q: int) -> List[Tri]:
             return (int(78 + tom), int(74 + tom), int(68 + tom))
         return (int(54 + tom), int(48 + tom), int(40 + tom))
 
-    tris = chao(-10, 12, -20, 8, 0.75, terra, _altura_terra)
+    tris = chao(-10, 12, -20, 8, passo, terra, _altura_terra)
     tris += torii(2.7, -1.5, (100, 30, 26), (64, 20, 18), inclina=math.radians(4))
     tris += lanterna(1.1, -1.0, (110, 108, 104), (255, 70, 40))
     tris += lanterna(4.4, -0.9, (110, 108, 104), (0, 0, 0), acesa=False, quebrada=True)
+    for x, z, alto in pinheiros_terror():
+        tris += pinheiro(x, z, alto, (30, 40, 36))
+    return tris
+
+
+def pinheiros_terror() -> List[Tuple[float, float, float]]:
+    """(x, z, altura) de cada pinheiro da noite do torii."""
     arv = random.Random(31)
+    out = []
     for _ in range(48):
-        x, z = arv.uniform(-10, 12), arv.uniform(-20, 4)
+        x, z, alto = arv.uniform(-10, 12), arv.uniform(-20, 4), arv.uniform(5.0, 8.0)
         perto = z > -3.5 and abs(x - 2.5) < 6.5  # nada colado na camera tampando a cena
         if perto or (abs(x - 2.7) < 2.6 and z > -12) or math.hypot(x - VULTO[0], z - VULTO[1]) < 0.9:
             continue
-        tris += pinheiro(x, z, arv.uniform(5.0, 8.0), (30, 40, 36))
-    tris += espadachim(pose(q), 2.7, -1.2, PALETA_TERROR)
-    return tris + vulto(*VULTO)
+        out.append((x, z, alto))
+    return out
+
+
+def obstaculos_terror() -> List[Tuple[float, float, float]]:
+    """Circulos (x, z, raio) do que nao se atravessa: troncos, pilares, lanternas, o espadachim."""
+    obs = [(x, z, 0.35) for x, z, _ in pinheiros_terror()]
+    obs += [(2.7 - 1.3, -1.5, 0.3), (2.7 + 1.3, -1.5, 0.3), (1.1, -1.0, 0.33), (4.4, -0.9, 0.33),
+            (4.9, -0.6, 0.38), (2.7, -1.2, 0.4)]
+    return obs
 
 
 def rasterizar(sx, sy, zv, cores, fundo: np.ndarray):

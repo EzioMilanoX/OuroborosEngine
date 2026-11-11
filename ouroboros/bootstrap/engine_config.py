@@ -24,6 +24,7 @@ class EngineConfig:
     entity_capacity: int
     difficulty_path: str
     input_bindings_path: str
+    renderer: str = "pygame"  # "pygame" (2D, CPU) ou "gl" (placa de video + 3D, ROADMAP M21)
 
     @staticmethod
     def from_json(config_path: str) -> "EngineConfig":
@@ -37,4 +38,5 @@ class EngineConfig:
             entity_capacity=raw["entity_capacity"],
             difficulty_path=raw["difficulty_path"],
             input_bindings_path=raw["input_bindings_path"],
+            renderer=raw.get("renderer", "pygame"),
         )

@@ -82,6 +82,8 @@ class PygameInputProvider(IInputProvider):
         self._axis_engaged = {}
         self._cursor_x = 0.0
         self._cursor_y = 0.0
+        self._mouse_dx = 0.0
+        self._mouse_dy = 0.0
 
     def load_bindings(self, bindings_path: str) -> None:
         with open(bindings_path, "r", encoding="utf-8") as f:
@@ -114,9 +116,13 @@ class PygameInputProvider(IInputProvider):
 
     def poll(self) -> None:
         self._previous_held = dict(self._current_held)
+        self._mouse_dx = self._mouse_dy = 0.0
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self._wants_quit = True
+            elif event.type == pygame.MOUSEMOTION:
+                self._mouse_dx += event.rel[0]
+                self._mouse_dy += event.rel[1]
 
         keys = pygame.key.get_pressed()
         mouse_buttons = pygame.mouse.get_pressed()
@@ -149,6 +155,13 @@ class PygameInputProvider(IInputProvider):
 
     def get_cursor_position(self):
         return (self._cursor_x, self._cursor_y)
+
+    def get_mouse_delta(self):
+        return (self._mouse_dx, self._mouse_dy)
+
+    def set_mouse_captured(self, captured: bool) -> None:
+        pygame.mouse.set_visible(not captured)
+        pygame.event.set_grab(captured)  # escondido + preso: o movimento relativo nao trava na borda
 
     def wants_quit(self) -> bool:
         return self._wants_quit

@@ -1,0 +1,11 @@
+{
+  "frente": ["KEY_W", "KEY_UP"],
+  "tras": ["KEY_S", "KEY_DOWN"],
+  "esquerda": "KEY_A",
+  "direita": "KEY_D",
+  "girar_esq": ["KEY_Q", "KEY_LEFT"],
+  "girar_dir": ["KEY_E", "KEY_RIGHT"],
+  "lanterna": ["KEY_F", "MOUSE_RIGHT"],
+  "tela_cheia": "KEY_F11",
+  "sair": "KEY_ESCAPE"
+}

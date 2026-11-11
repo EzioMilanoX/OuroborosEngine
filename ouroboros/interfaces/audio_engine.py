@@ -60,6 +60,12 @@ class IAudioEngine(ABC):
         """Dispara um efeito sonoro curto identificado por `sound_id`, sem afetar `get_clock()`."""
         ...
 
+    def play_spatial(self, sound_id: str, volume: float = 1.0, pan: float = 0.0) -> None:
+        """Como `play_one_shot`, com o som vindo de um lado: `pan` -1 (todo na esquerda) a
+        1 (todo na direita) -- a pista de onde algo esta, sem precisar ver (ROADMAP M21).
+        Default: ignora o `pan`."""
+        self.play_one_shot(sound_id, volume)
+
     @abstractmethod
     def get_clock(self) -> IAudioClock:
         """Retorna o `IAudioClock` associado a faixa musical atualmente em reproducao."""
