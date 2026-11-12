@@ -1,9 +1,0 @@
-{
-  "window_width": 960,
-  "window_height": 540,
-  "window_title": "OuroborosEngine -- Terror PS1 (placa de video)",
-  "entity_capacity": 16,
-  "difficulty_path": "data/difficulties/card_game/basic.json",
-  "input_bindings_path": "data/input_bindings/terror_ps1_teclado.json",
-  "renderer": "gl"
-}

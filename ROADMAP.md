@@ -886,8 +886,13 @@ vizinhos) e caixas (paredes da cabana, troncos). Sem o samurai.
   escuros recortarem contra ela. A lição: no terror, a neblina precisa ser mais clara que o que ela
   esconde, ou o fundo vira um vazio em vez de uma ameaça.
 
+**Repo próprio (2026-11-11):** o jogo saiu da engine para o repo irmão
+[EzioMilanoX/TerrorPS1](https://github.com/EzioMilanoX/TerrorPS1) (release v0.1.0), como o Ryoiki.
+Os caminhos `games/terror_ps1/...` acima são históricos; lá o pacote é `terror_ps1/`, e os
+construtores de malha foram copiados para `terror_ps1/malhas.py` até o passo 1 abaixo.
+
 **Próximos passos do M21:**
 1. Os construtores de malha (`bloco`, `cone`, `icosaedro`, `chao`) saem da vitrine para a engine.
 2. Recorte no plano próximo e materiais com textura (afim, como o PS1).
 3. Medir o custo da camada 2D (sobe 960×540 RGBA por quadro) e só subir quando mudar.
-4. Fatia vertical do SEN-04: a memória fora do cone (M.I.R.A.G.E.) e o perseguidor que ouve (S.H.A.D.O.W.).
+4. Fatia vertical do SEN-04 (no repo TerrorPS1): a memória fora do cone (M.I.R.A.G.E.) e o perseguidor que ouve (S.H.A.D.O.W.).
