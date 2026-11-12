@@ -867,6 +867,25 @@ z-buffer). Luz por vértice (hemisférica + direcional + pontual + foco), como o
   perto; o vulto redesenhado (magro, dedos longos, cabeça alongada e tombada, olhos e boca escuros).
   Continua em ~2,7 ms por quadro.
 
+**A demo vira um mapa (2026-11-11):** `games/terror_ps1/mapa.py` gera uma floresta de 80×80
+(semente fixa): ~1.200 árvores (algumas secas) longe das trilhas, pedras, moitas, oito trilhas ligando
+sete marcos (cabana com lampião, poço, árvore morta com tiras de pano, círculo de pedras, fileira de
+jizo com velas, troncos caídos, acampamento com brasas) e o santuário do torii ao norte. ~88 mil
+triângulos numa malha estática, **2,3 ms por quadro**; colisão por círculos (numa grade 4×4, só os
+vizinhos) e caixas (paredes da cabana, troncos). Sem o samurai.
+- **Coletáveis:** 7 amuletos (um por marco, flutuando; um guizo toca do lado do mais próximo) e 5
+  pilhas (+50%). Com os 7, levar ao santuário termina a noite: amanhece e a floresta aparece.
+- **Armadilhas de urso:** 18, nas trilhas, quase invisíveis sem a lanterna. Prendem 3 s (ESPAÇO
+  força), depois se anda mancando; o estalo de metal atrai o vulto até metade do caminho.
+- **O vulto no mapa:** cada amuleto o deixa mais rápido; longe demais, reaparece atrás de você.
+- Só as 4 luzes do mapa mais próximas entram por quadro (o shader aceita 8).
+- Diferente de Slender de propósito: aqui o vulto congela na luz, e os itens são levados a um lugar.
+- **Ajuste de leitura (2026-11-11):** árvores densas (1,7 m) com copa na altura dos olhos tapavam a
+  tela. Agora: troncos a 3,4 m ou mais na área jogável (a borda continua uma parede), pinheiros altos
+  (8–13 m) com a copa acima de 2,6 m, e a neblina num cinza-azulado (não preta), para os troncos
+  escuros recortarem contra ela. A lição: no terror, a neblina precisa ser mais clara que o que ela
+  esconde, ou o fundo vira um vazio em vez de uma ameaça.
+
 **Próximos passos do M21:**
 1. Os construtores de malha (`bloco`, `cone`, `icosaedro`, `chao`) saem da vitrine para a engine.
 2. Recorte no plano próximo e materiais com textura (afim, como o PS1).

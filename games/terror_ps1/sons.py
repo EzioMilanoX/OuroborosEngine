@@ -16,7 +16,7 @@ from typing import Callable, Dict
 import numpy as np
 
 TAXA = 22050
-VERSAO = "1"
+VERSAO = "2"
 
 
 def _ruido(n: int, rng) -> np.ndarray:
@@ -96,8 +96,51 @@ def zumbido(rng) -> np.ndarray:
     return som[:-m]
 
 
+def armadilha(rng) -> np.ndarray:
+    """O estalo da armadilha: metal batendo em metal, com o zumbido da mola."""
+    n = int(0.9 * TAXA)
+    t = np.arange(n) / TAXA
+    metal = sum(np.sin(2 * np.pi * f * t) * a for f, a in ((523, 1.0), (1187, 0.6), (2311, 0.4), (3790, 0.25)))
+    pancada = _ruido(n, rng) * _env(n, 0.0002, 0.012) * 2.0
+    return np.tanh(2.0 * (metal * _env(n, 0.0005, 0.18) + pancada))
+
+
+def sino(rng) -> np.ndarray:
+    """O guizo do amuleto: tilintar agudo e fino, a pista de onde ele esta."""
+    n = int(1.2 * TAXA)
+    t = np.arange(n) / TAXA
+    som = np.zeros(n)
+    for atraso in (0.0, 0.11, 0.19):
+        tt = np.clip(t - atraso, 0, None)
+        tom = sum(np.sin(2 * np.pi * f * tt) * a for f, a in ((1760, 1.0), (2637, 0.5), (4186, 0.3)))
+        som += tom * (t >= atraso) * np.exp(-tt / 0.25)
+    return som
+
+
+def coleta(rng) -> np.ndarray:
+    n = int(0.6 * TAXA)
+    t = np.arange(n) / TAXA
+    return (np.sin(2 * np.pi * 880 * t) + 0.6 * np.sin(2 * np.pi * 1320 * t)) * _env(n, 0.005, 0.2)
+
+
+def forca(rng) -> np.ndarray:
+    """Forcando a armadilha: metal rangendo."""
+    n = int(0.25 * TAXA)
+    t = np.arange(n) / TAXA
+    return np.sin(2 * np.pi * (300 + 200 * np.sin(2 * np.pi * 23 * t)) * t) * _env(n, 0.02, 0.08) + 0.3 * _ruido(n, rng) * _env(n, 0.01, 0.05)
+
+
+def amanhecer(rng) -> np.ndarray:
+    """O fim: um acorde que abre devagar."""
+    n = 4 * TAXA
+    t = np.arange(n) / TAXA
+    acorde = sum(np.sin(2 * np.pi * f * t) for f in (220.0, 277.18, 329.63, 440.0))
+    return acorde * np.minimum(1.0, t / 1.5) * np.exp(-np.clip(t - 2.0, 0, None) / 0.8)
+
+
 SONS: Dict[str, Callable] = {"passo": passo, "clique": clique, "batida": batida, "galho": galho,
-                             "pegou": pegou, "zumbido": zumbido}
+                             "pegou": pegou, "zumbido": zumbido, "armadilha": armadilha, "sino": sino,
+                             "coleta": coleta, "forca": forca, "amanhecer": amanhecer}
 
 
 def _salvar(caminho: Path, som: np.ndarray) -> None:

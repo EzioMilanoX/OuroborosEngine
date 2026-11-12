@@ -452,14 +452,6 @@ def pinheiros_terror() -> List[Tuple[float, float, float]]:
     return out
 
 
-def obstaculos_terror() -> List[Tuple[float, float, float]]:
-    """Circulos (x, z, raio) do que nao se atravessa: troncos, pilares, lanternas, o espadachim."""
-    obs = [(x, z, 0.35) for x, z, _ in pinheiros_terror()]
-    obs += [(2.7 - 1.3, -1.5, 0.3), (2.7 + 1.3, -1.5, 0.3), (1.1, -1.0, 0.33), (4.4, -0.9, 0.33),
-            (4.9, -0.6, 0.38), (2.7, -1.2, 0.4)]
-    return obs
-
-
 def rasterizar(sx, sy, zv, cores, fundo: np.ndarray):
     """Z-buffer por pixel, o que uma GPU faz: cada triangulo testa a profundidade de cada
     pixel e so pinta se estiver mais perto do que o que ja esta la. A cor e interpolada

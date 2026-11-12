@@ -123,3 +123,91 @@ def test_os_sons_sao_gerados_uma_vez(tmp_path):
     antes = {c: c.stat().st_mtime_ns for c in caminhos.values()}
     sons.gerar(tmp_path)
     assert {c: c.stat().st_mtime_ns for c in caminhos.values()} == antes
+
+
+# ---------------------------------------------------------------- o mapa da floresta
+
+import pytest  # noqa: E402
+
+from games.terror_ps1 import mapa as mapa_mod  # noqa: E402
+
+
+@pytest.fixture(scope="module")
+def floresta():
+    return mapa_mod.gerar_mapa()
+
+
+def _no_mapa(m, **kw):
+    e = regras.Estado(mapa=m)
+    for k, v in kw.items():
+        setattr(e, k, v)
+    return e
+
+
+def test_o_mapa_e_sempre_o_mesmo_e_as_trilhas_ficam_livres(floresta):
+    outro = mapa_mod.gerar_mapa()
+    assert floresta.arvores == outro.arvores and floresta.armadilhas == outro.armadilhas
+    assert len(floresta.arvores) > 600 and len(floresta.amuletos) == 7 and len(floresta.armadilhas) >= 15
+    dentro = [(x, z) for x, z, _, _ in floresta.arvores if abs(x) < mapa_mod.LIMITE and abs(z) < mapa_mod.LIMITE]
+    assert all(mapa_mod.dist_trilha(p) >= 1.8 for p in dentro)  # nenhuma arvore no caminho
+
+
+def test_da_para_pegar_todo_amuleto_e_toda_pilha(floresta):
+    for x, z in [(a[0], a[1]) for a in floresta.amuletos] + floresta.pilhas:
+        px, pz = regras.colidir(x, z, floresta.circulos_perto(x, z), floresta.caixas, (-40, 40, -40, 40))
+        assert math.hypot(px - x, pz - z) < regras.PEGAR_ITEM  # a colisao deixa chegar perto o bastante
+
+
+def test_pegar_amuleto_e_pilha(floresta):
+    a = floresta.amuletos[0]
+    x, z = regras.colidir(a[0], a[1], floresta.circulos_perto(a[0], a[1]), floresta.caixas, (-40, 40, -40, 40))
+    e = _no_mapa(floresta, x=x, z=z, pilha=0.2, vulto=(a[0] + 20, a[1]))
+    regras.atualizar(e, 1 / 60, 0, 0, 0, False)
+    assert e.coletados == 1 and "amuleto" in e.eventos
+    p = floresta.pilhas[0]
+    e.x, e.z = p[0] + 0.3, p[1]
+    regras.atualizar(e, 1 / 60, 0, 0, 0, False)
+    assert e.pilha > 0.6 and "pilha" in e.eventos
+
+
+def test_armadilha_prende_faz_barulho_e_o_vulto_ouve(floresta):
+    tx, tz = floresta.armadilhas[0]
+    e = _no_mapa(floresta, x=tx, z=tz + 0.2, vulto=(tx + 20.0, tz))
+    regras.atualizar(e, 1 / 60, 0, 0, 0, False)
+    assert e.preso > 0 and "armadilha" in e.eventos and e.armadilhas[0][2] == 1.0
+    assert math.hypot(e.vulto[0] - tx, e.vulto[1] - tz) <= 10.5  # correu para o barulho
+    x0 = e.x
+    regras.atualizar(e, 1 / 60, 1.0, 0, 0, False)
+    assert e.x == x0  # preso nao anda
+    for _ in range(4):  # forcando, sai antes dos 3 s
+        regras.atualizar(e, 1 / 60, 0, 0, 0, False, soltar=True)
+    for _ in range(120):
+        regras.atualizar(e, 1 / 60, 0, 0, 0, False)
+    assert e.preso == 0 and e.mancando > 0  # solto, mas mancando
+    regras.atualizar(e, 1 / 60, 0, 0, 0, False)
+    assert "armadilha" not in e.eventos  # fechada, nao morde de novo
+
+
+def test_com_todos_os_amuletos_o_santuario_termina_a_noite(floresta):
+    sx, sz = mapa_mod.SANTUARIO
+    e = _no_mapa(floresta, x=sx, z=sz + 2.0, vulto=(sx + 15, sz + 15))
+    regras.atualizar(e, 1 / 60, 0, 0, 0, False)
+    assert not e.venceu  # sem os amuletos, nada
+    e.coletados, e.amuletos = 7, []
+    regras.atualizar(e, 1 / 60, 0, 0, 0, False)
+    assert e.venceu and "venceu" in e.eventos
+    regras.reiniciar(e)
+    assert not e.venceu and e.coletados == 0 and len(e.amuletos) == 7
+
+
+def test_longe_demais_ele_reaparece_atras(floresta):
+    e = _no_mapa(floresta, vulto=(-35.0, -35.0))
+    for _ in range(80):
+        regras.atualizar(e, 1 / 60, 0, 0, 0, False)
+    vx, vz = e.vulto
+    assert math.hypot(e.x - vx, e.z - vz) < 17 and vz > e.z  # atras (giro 0 olha para -z)
+
+
+def test_caixa_nao_deixa_atravessar_parede():
+    x, z = regras.colidir(0.0, 0.05, (), [(-1.0, -0.1, 1.0, 0.1)], (-9, 9, -9, 9))
+    assert abs(z) >= 0.1 + regras.RAIO_JOGADOR - 1e-9

@@ -7,5 +7,6 @@
   "girar_dir": ["KEY_E", "KEY_RIGHT"],
   "lanterna": ["KEY_F", "MOUSE_RIGHT"],
   "tela_cheia": "KEY_F11",
+  "soltar": ["KEY_SPACE", "MOUSE_LEFT"],
   "sair": "KEY_ESCAPE"
 }
