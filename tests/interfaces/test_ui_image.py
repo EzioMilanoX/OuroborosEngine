@@ -73,3 +73,16 @@ def test_default_da_interface_e_no_op():
         def shutdown(self): ...
 
     Minimo().draw_ui_image(1, 0, 0)
+
+
+def test_recarregar_o_mesmo_id_mostra_a_imagem_nova(renderer, tmp_path):
+    """Uma "foto" nova no mesmo slot: o cache da escala antiga nao pode sobreviver."""
+    renderer.draw_ui_image(7, 100, 100, scale=2.0)  # guarda a versao escalada da vermelha/azul
+    verde = pygame.Surface((20, 10), pygame.SRCALPHA)
+    verde.fill((0, 255, 0, 255))
+    caminho = tmp_path / "verde.png"
+    pygame.image.save(verde, str(caminho))
+    renderer.load_texture(7, str(caminho))
+    renderer.begin_frame()
+    renderer.draw_ui_image(7, 100, 100, scale=2.0)
+    assert _pixel(90, 100) == (0, 255, 0)

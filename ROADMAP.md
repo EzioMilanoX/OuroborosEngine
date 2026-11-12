@@ -891,6 +891,14 @@ vizinhos) e caixas (paredes da cabana, troncos). Sem o samurai.
 Os caminhos `games/terror_ps1/...` acima são históricos; lá o pacote é `terror_ps1/`, e os
 construtores de malha foram copiados para `terror_ps1/malhas.py` até o passo 1 abaixo.
 
+**Fita VHS (2026-11-12):** `Estilo3D.vhs` (0..1) no passe de composição: linhas que tremem,
+blocos que escorregam, a faixa de tracking subindo, cores desalinhadas e menos saturação.
+O TerrorPS1 v0.2 a usa crescendo com o vulto perto.
+
+**Espelho e foto (2026-11-12):** `Estilo3D.espelhar` espelha a imagem 3D na composição (a UI
+2D não), e `IRenderer3D.ler_pixels` (opcional, padrão `None`) devolve o quadro 3D já
+desenhado -- o TerrorPS1 usa os dois na noite espelhada e na câmera.
+
 **Próximos passos do M21:**
 1. Os construtores de malha (`bloco`, `cone`, `icosaedro`, `chao`) saem da vitrine para a engine.
 2. Recorte no plano próximo e materiais com textura (afim, como o PS1).

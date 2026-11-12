@@ -88,6 +88,10 @@ class PygameRenderer(IRenderer):
 
     def load_texture(self, texture_id: int, file_path: str) -> None:
         self._textures[texture_id] = pygame.image.load(file_path).convert_alpha()
+        # recarregar um id ja usado (ex.: uma foto nova no mesmo slot) invalida as versoes
+        # escaladas/espelhadas guardadas da imagem antiga -- senao a tela mostra a velha para sempre
+        self._texture_scale_cache = {k: v for k, v in self._texture_scale_cache.items()
+                                     if not (k[0] == texture_id or (k[0] == "ui" and k[1] == texture_id))}
 
     def set_camera_offset(self, dx: float, dy: float) -> None:
         self._cam_dx = dx

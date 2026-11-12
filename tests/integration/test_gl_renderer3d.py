@@ -86,3 +86,32 @@ def test_estilo_ps1_baixa_resolucao_e_15_bits(r3d):
     assert px.shape == (24, 32, 3)
     niveis = {round(v / 255 * 31, 3) for v in np.unique(px)}
     assert all(abs(n - round(n)) < 0.07 for n in niveis)  # so os 32 niveis de 5 bits
+
+
+def _composto(r, estilo):
+    """O quadro como sai na tela: o 3D ampliado pelo `compor` (onde moram grao, vinheta e VHS)."""
+    tela = r._ctx.simple_framebuffer((64, 48))
+    cores = np.array([(255, 40, 40), (40, 255, 40), (40, 40, 255)] * 2, dtype=np.float32)
+    m = r.criar_malha(_quadrado(0.0, 1.0), cores)
+    _quadro(r, (m, None), estilo=estilo)
+    r.desenhar(m)
+    r.compor(tela)
+    px = np.frombuffer(tela.read(components=3), dtype=np.uint8).reshape(48, 64, 3).astype(int)
+    r.remover_malha(m)
+    tela.release()
+    return px
+
+
+def test_fita_vhs_so_aparece_quando_pedida(r3d):
+    limpo = _composto(r3d, Estilo3D(fundo=(0, 0, 0)))
+    assert np.array_equal(limpo, _composto(r3d, Estilo3D(fundo=(0, 0, 0))))  # sem VHS (nem grao): estavel
+    fita = _composto(r3d, Estilo3D(fundo=(0, 0, 0), vhs=1.0))
+    assert np.abs(fita - limpo).sum() > 0  # com VHS a imagem muda
+    cor = lambda px: np.abs(px - px.mean(axis=2, keepdims=True)).mean()  # noqa: E731
+    assert cor(fita) < cor(limpo)  # e perde cor
+
+
+def test_espelhar_inverte_a_imagem_na_horizontal(r3d):
+    limpo = _composto(r3d, Estilo3D(fundo=(0, 0, 0)))
+    espelho = _composto(r3d, Estilo3D(fundo=(0, 0, 0), espelhar=True))
+    assert np.array_equal(espelho, limpo[:, ::-1])

@@ -66,6 +66,8 @@ class Estilo3D:
     pontilhado: bool = False  # Bayer 4x4 antes de quantizar
     grao: float = 0.0  # amplitude do ruido, 0..1
     vinheta: float = 0.0  # 0: nenhuma; 0.5: escurece bem as bordas
+    vhs: float = 0.0  # fita VHS, 0..1: cores desalinhadas, linhas tremidas, faixa de tracking, menos cor
+    espelhar: bool = False  # a imagem 3D sai espelhada na horizontal (a UI 2D nao)
 
 
 class IRenderer3D(ABC):
@@ -102,6 +104,11 @@ class IRenderer3D(ABC):
     def desenhar(self, malha_id: int, modelo: Optional[np.ndarray] = None) -> None:
         """Desenha a malha neste quadro. `modelo`: matriz 4x4 (rotacao + translacao) do
         objeto; None = identidade."""
+
+    def ler_pixels(self) -> Optional[np.ndarray]:
+        """O que ja foi desenhado neste quadro 3D (antes de compor), (altura, largura, 3)
+        uint8, de cima para baixo -- uma "foto" do jogo. Backend que nao sabe: None."""
+        return None
 
 
 def translacao_e_giro_y(x: float, y: float, z: float, giro: float = 0.0) -> np.ndarray:

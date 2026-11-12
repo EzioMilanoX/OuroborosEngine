@@ -108,11 +108,27 @@ void main() { v_uv = in_pos * 0.5 + 0.5; gl_Position = vec4(in_pos, 0.0, 1.0); }
 _QUAD_FRAG = """
 #version 330
 uniform sampler2D u_tex; uniform vec2 u_res; uniform float u_grao; uniform float u_vinheta;
-uniform float u_semente;
+uniform float u_semente; uniform float u_vhs; uniform float u_tempo; uniform float u_espelhar;
 in vec2 v_uv; out vec4 f_cor;
 float ruido(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233)) + u_semente) * 43758.5453); }
+float ruido1(float y) { return fract(sin(y * 91.3458 + u_semente) * 47453.5453); }
 void main() {
-    vec4 c = texture(u_tex, v_uv);
+    vec2 uv = vec2(mix(v_uv.x, 1.0 - v_uv.x, u_espelhar), v_uv.y);
+    float faixa = 0.0;
+    if (u_vhs > 0.0) {  // a fita: linhas que tremem, blocos que escorregam e a faixa de tracking subindo
+        float linha = floor(uv.y * u_res.y);
+        float bloco = step(0.97 - 0.06 * u_vhs, ruido1(floor(uv.y * 18.0) + floor(u_tempo * 6.0)));
+        faixa = smoothstep(0.07, 0.0, abs(uv.y - fract(1.0 - u_tempo * 0.11))) * u_vhs;
+        uv.x += (ruido1(linha) - 0.5) * 0.004 * u_vhs + (bloco * 0.03 + faixa * 0.05) * u_vhs * (ruido1(linha + 7.0) - 0.5);
+    }
+    vec4 c = texture(u_tex, uv);
+    if (u_vhs > 0.0) {
+        float ab = 0.003 * u_vhs;
+        c.r = texture(u_tex, uv + vec2(ab, 0.0)).r;
+        c.b = texture(u_tex, uv - vec2(ab, 0.0)).b;
+        c.rgb = mix(c.rgb, vec3(dot(c.rgb, vec3(0.299, 0.587, 0.114))), 0.35 * u_vhs);
+        c.rgb += faixa * 0.35 * ruido(floor(v_uv * u_res) + 3.0);
+    }
     c.rgb += (ruido(floor(v_uv * u_res)) - 0.5) * u_grao;
     vec2 d = (v_uv - 0.5) * 2.0;
     c.rgb *= clamp(1.0 + 0.15 * u_vinheta - 0.55 * u_vinheta * dot(d, d), 0.0, 1.0);
@@ -271,7 +287,7 @@ class ModernGLRenderer3D(IRenderer3D):
 
     # ------------------------------------------------------------ saida
     def compor(self, destino: "moderngl.Framebuffer") -> None:
-        """Amplia o quadro 3D para `destino` (a tela), com grao e vinheta."""
+        """Amplia o quadro 3D para `destino` (a tela), com grao, vinheta e fita VHS."""
         destino.use()
         self._ctx.disable(moderngl.DEPTH_TEST)
         self._ctx.disable(moderngl.BLEND)
@@ -281,6 +297,9 @@ class ModernGLRenderer3D(IRenderer3D):
         q["u_grao"].value = self._estilo.grao
         q["u_vinheta"].value = self._estilo.vinheta
         q["u_semente"].value = float(self._quadro % 997)
+        q["u_vhs"].value = self._estilo.vhs
+        q["u_espelhar"].value = 1.0 if self._estilo.espelhar else 0.0
+        q["u_tempo"].value = self._quadro / 60.0
         self._cor.use(0)
         self._quad.render(moderngl.TRIANGLES)
         self.desenhou = False
@@ -293,6 +312,8 @@ class ModernGLRenderer3D(IRenderer3D):
         q = self._quad_prog
         q["u_grao"].value = 0.0
         q["u_vinheta"].value = 0.0
+        q["u_vhs"].value = 0.0
+        q["u_espelhar"].value = 0.0
         textura.use(0)
         self._quad.render(moderngl.TRIANGLES)
         self._ctx.disable(moderngl.BLEND)
