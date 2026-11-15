@@ -137,6 +137,62 @@ void main() {
 """
 
 
+# os recortes: um retangulo em pe com o pe da imagem em u_pe, virado para a camera (so gira em
+# volta do eixo y: u_direita e a direita da camera no plano do chao)
+_REC_VERT = """
+#version 330
+in vec2 in_uv;  // (0, 0): canto de cima a esquerda da imagem; (1, 1): de baixo a direita
+uniform mat4 u_vp; uniform vec3 u_pe; uniform vec3 u_direita;
+uniform vec2 u_tam; uniform vec2 u_ancora; uniform float u_espelhar;
+out vec2 v_uv; out float v_prof;
+void main() {
+    float x = (in_uv.x - u_ancora.x) * u_tam.x;
+    if (u_espelhar > 0.5) x = -x;
+    vec3 p = u_pe + u_direita * x + vec3(0.0, (u_ancora.y - in_uv.y) * u_tam.y, 0.0);
+    vec4 clip = u_vp * vec4(p, 1.0);
+    gl_Position = clip;
+    v_prof = clip.w;
+    v_uv = in_uv;
+}
+"""
+
+_REC_FRAG = """
+#version 330
+uniform sampler2D u_tex;
+uniform vec3 u_neb_cor; uniform vec2 u_neb; uniform float u_neb_max;
+in vec2 v_uv; in float v_prof; out vec4 f_cor;
+void main() {
+    vec4 c = texture(u_tex, v_uv);
+    if (c.a < 0.5) discard;
+    float f = clamp((v_prof - u_neb.x) / (u_neb.y - u_neb.x), 0.0, 1.0) * u_neb_max;
+    f_cor = vec4(mix(c.rgb, u_neb_cor, f), 1.0);
+}
+"""
+
+# a sombra redonda: um disco deitado no chao, preto e translucido, mais fraco na borda e longe
+_SOMBRA_VERT = """
+#version 330
+in vec2 in_pos; uniform mat4 u_vp; uniform vec3 u_pe; uniform float u_raio;
+out vec2 v_c; out float v_prof;
+void main() {
+    vec4 clip = u_vp * vec4(u_pe + vec3(in_pos.x * u_raio, 0.02, in_pos.y * u_raio), 1.0);
+    gl_Position = clip;
+    v_prof = clip.w;
+    v_c = in_pos;
+}
+"""
+
+_SOMBRA_FRAG = """
+#version 330
+uniform vec2 u_neb; uniform float u_neb_max;
+in vec2 v_c; in float v_prof; out vec4 f_cor;
+void main() {
+    float f = clamp((v_prof - u_neb.x) / (u_neb.y - u_neb.x), 0.0, 1.0) * u_neb_max;
+    f_cor = vec4(0.0, 0.0, 0.0, (1.0 - smoothstep(0.5, 1.0, length(v_c))) * 0.45 * (1.0 - f));
+}
+"""
+
+
 def perspectiva(fov_y: float, aspecto: float, perto: float, longe: float) -> np.ndarray:
     t = 1.0 / math.tan(fov_y / 2)
     return np.array([[t / aspecto, 0, 0, 0], [0, t, 0, 0],
@@ -168,6 +224,14 @@ class ModernGLRenderer3D(IRenderer3D):
         self._quad_vbo = ctx.buffer(quad.tobytes())
         self._quad = ctx.vertex_array(self._quad_prog, [(self._quad_vbo, "2f", "in_pos")])
         self._malhas: Dict[int, Tuple["moderngl.Buffer", "moderngl.VertexArray", int]] = {}
+        self._rec_prog = ctx.program(vertex_shader=_REC_VERT, fragment_shader=_REC_FRAG)
+        cantos = np.array([0, 0, 1, 0, 0, 1, 1, 0, 1, 1, 0, 1], dtype="f4")
+        self._rec_vbo = ctx.buffer(cantos.tobytes())
+        self._rec_vao = ctx.vertex_array(self._rec_prog, [(self._rec_vbo, "2f", "in_uv")])
+        self._sombra_prog = ctx.program(vertex_shader=_SOMBRA_VERT, fragment_shader=_SOMBRA_FRAG)
+        self._sombra_vao = ctx.vertex_array(self._sombra_prog, [(self._quad_vbo, "2f", "in_pos")])
+        self._recortes: Dict[int, Tuple["moderngl.Texture", Tuple[float, float]]] = {}  # textura, pe em fracao
+        self._direita = (1.0, 0.0, 0.0)  # a direita da camera, no plano do chao
         self._proximo_id = 1
         self._fbo: Optional["moderngl.Framebuffer"] = None
         self._cor: Optional["moderngl.Texture"] = None
@@ -217,7 +281,11 @@ class ModernGLRenderer3D(IRenderer3D):
                        perto: float = 0.1, longe: float = 200.0) -> None:
         w, h = self._estilo.resolucao or self._tela
         self._camera = (posicao, alvo, fov_vertical_graus, perto, longe)
-        self._vp = perspectiva(math.radians(fov_vertical_graus), w / h, perto, longe) @ olhar_para(posicao, alvo)
+        vista = olhar_para(posicao, alvo)
+        self._vp = perspectiva(math.radians(fov_vertical_graus), w / h, perto, longe) @ vista
+        dx, dz = float(vista[0, 0]), float(vista[0, 2])  # a linha "s" da vista: a direita da camera
+        n = math.hypot(dx, dz) or 1.0
+        self._direita = (dx / n, 0.0, dz / n)
 
     def definir_iluminacao(self, iluminacao: Iluminacao3D) -> None:
         self._iluminacao = iluminacao
@@ -273,17 +341,80 @@ class ModernGLRenderer3D(IRenderer3D):
             if nome in p:
                 p[nome].write(arr.tobytes())
 
-    def desenhar(self, malha_id: int, modelo: Optional[np.ndarray] = None) -> None:
+    def _preparar(self) -> None:
+        """Comeca o quadro 3D (na primeira coisa desenhada) e atualiza os uniformes se a
+        camera, a luz ou o estilo mudaram."""
+        chave = id(self._iluminacao), id(self._estilo), self._vp.tobytes()
         if not self.desenhou:
             self._comecar()
             self._uniformes()
-            self._uniformes_do_quadro = id(self._iluminacao), id(self._estilo), self._vp.tobytes()
-        elif self._uniformes_do_quadro != (id(self._iluminacao), id(self._estilo), self._vp.tobytes()):
+            self._uniformes_do_quadro = chave
+        elif self._uniformes_do_quadro != chave:
             self._uniformes()
-            self._uniformes_do_quadro = id(self._iluminacao), id(self._estilo), self._vp.tobytes()
+            self._uniformes_do_quadro = chave
+
+    def desenhar(self, malha_id: int, modelo: Optional[np.ndarray] = None) -> None:
+        self._preparar()
         _, vao, n = self._malhas[malha_id]
         self._prog["u_modelo"].write(_mat(np.eye(4) if modelo is None else modelo))
         vao.render(moderngl.TRIANGLES, vertices=n)
+
+    # ------------------------------------------------------------ recortes
+    def _textura_recorte(self, imagem: np.ndarray) -> "moderngl.Texture":
+        img = np.ascontiguousarray(imagem, dtype=np.uint8)
+        if img.ndim != 3 or img.shape[2] != 4:
+            raise ValueError("o recorte precisa ser (altura, largura, 4) RGBA")
+        tex = self._ctx.texture((img.shape[1], img.shape[0]), 4, img.tobytes())  # linha 0 (o topo) em v = 0
+        tex.build_mipmaps()
+        tex.filter = (moderngl.LINEAR_MIPMAP_LINEAR, moderngl.LINEAR)  # reduz sem serrilhar
+        tex.repeat_x = tex.repeat_y = False
+        return tex
+
+    def criar_recorte(self, imagem: np.ndarray, pe: Tuple[float, float]) -> int:
+        rid = self._proximo_id
+        self._proximo_id += 1
+        self._recortes[rid] = (self._textura_recorte(imagem), (pe[0] / imagem.shape[1], pe[1] / imagem.shape[0]))
+        return rid
+
+    def atualizar_recorte(self, recorte_id: int, imagem: np.ndarray, pe: Tuple[float, float]) -> None:
+        self._recortes[recorte_id][0].release()
+        self._recortes[recorte_id] = (self._textura_recorte(imagem),
+                                      (pe[0] / imagem.shape[1], pe[1] / imagem.shape[0]))
+
+    def remover_recorte(self, recorte_id: int) -> None:
+        self._recortes.pop(recorte_id)[0].release()
+
+    def desenhar_recorte(self, recorte_id: int, posicao: Vec3, altura: float, *, espelhar: bool = False,
+                         sombra: float = 0.0) -> None:
+        self._preparar()
+        e = self._estilo
+        vp = _mat(self._vp)
+        if sombra > 0:  # translucida: soma por cima do chao, sem escrever no z-buffer
+            s = self._sombra_prog
+            s["u_vp"].write(vp)
+            s["u_pe"].value = tuple(float(v) for v in posicao)
+            s["u_raio"].value = float(sombra)
+            s["u_neb"].value = e.neblina
+            s["u_neb_max"].value = e.neblina_max
+            self._ctx.enable(moderngl.BLEND)
+            self._ctx.blend_func = moderngl.SRC_ALPHA, moderngl.ONE_MINUS_SRC_ALPHA
+            self._fbo.depth_mask = False
+            self._sombra_vao.render(moderngl.TRIANGLES)
+            self._fbo.depth_mask = True
+            self._ctx.disable(moderngl.BLEND)
+        tex, ancora = self._recortes[recorte_id]
+        p = self._rec_prog
+        p["u_vp"].write(vp)
+        p["u_pe"].value = tuple(float(v) for v in posicao)
+        p["u_direita"].value = self._direita
+        p["u_tam"].value = (altura * tex.width / tex.height, float(altura))
+        p["u_ancora"].value = ancora
+        p["u_espelhar"].value = 1.0 if espelhar else 0.0
+        p["u_neb_cor"].value = e.neblina_cor
+        p["u_neb"].value = e.neblina
+        p["u_neb_max"].value = e.neblina_max
+        tex.use(0)
+        self._rec_vao.render(moderngl.TRIANGLES)
 
     # ------------------------------------------------------------ saida
     def compor(self, destino: "moderngl.Framebuffer") -> None:
@@ -327,6 +458,9 @@ class ModernGLRenderer3D(IRenderer3D):
     def liberar(self) -> None:
         for mid in list(self._malhas):
             self.remover_malha(mid)
-        for obj in (self._fbo, self._cor, self._quad, self._quad_vbo, self._prog, self._quad_prog):
+        for rid in list(self._recortes):
+            self.remover_recorte(rid)
+        for obj in (self._fbo, self._cor, self._quad, self._sombra_vao, self._rec_vao, self._rec_vbo, self._quad_vbo,
+                    self._prog, self._quad_prog, self._rec_prog, self._sombra_prog):
             if obj is not None:
                 obj.release()

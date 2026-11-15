@@ -38,7 +38,10 @@ grid/pathfinding/turno, e um modelo de dados sem ECS.
   lua, ao lado de um torii, dando um corte) em ilustracao cel-shading, pixel art,
   tinta/sumi-e, flat com luz e low poly 3D, pintada ao abrir e mostrada com `draw_ui_image` (M18).
   Grade 3x2 para comparar; 1-5 abre um estilo, G volta, A/D troca. Rodar com
-  `python -m games.vitrine_estilos.main`.
+  `python -m games.vitrine_estilos.main`. Uma segunda cena (tecla C), **Biogenia**, mostra
+  o fim do Cretaceo em corte lateral (o tiranossauro, o mamifero na toca, o ponto no ceu) em
+  seis tons possiveis para o jogo: leve, silhueta, pixel art, naturalista, 2.5D e 3D com recortes
+  (`games/vitrine_estilos/biogenia.py`; abrir direto com `... main biogenia`).
 
 ## A Constituicao da Engine
 

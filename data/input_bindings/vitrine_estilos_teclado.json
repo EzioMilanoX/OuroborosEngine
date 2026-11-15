@@ -6,6 +6,7 @@
   "estilo_5": "KEY_5",
   "estilo_6": "KEY_6",
   "grade": "KEY_G",
+  "cena": "KEY_C",
   "anterior": "KEY_A",
   "proximo": "KEY_D",
   "sair": "KEY_ESCAPE"

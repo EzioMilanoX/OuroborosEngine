@@ -735,6 +735,19 @@ para escolher o rumo antes de M19–M22. Hoje cada estilo é pintado pelo própr
 (o pintor cel-shading, o filtro nítido, o pincel, o bloom) passa para dentro da engine e a
 vitrine vira o teste visual de cada um.
 
+**Vitrine, segunda cena (2026-11-14):** `biogenia.py` pinta o fim do Cretáceo em corte lateral
+(o blueprint GAM-13, Biogênia) em quatro tons, para escolher o tom do jogo: leve (o pintor
+cel-shading, de dia), silhueta (bordas acesas por máscara deslocada, halo aditivo, cinza
+caindo, grão e vinheta), pixel art (160×90, céu com pontilhado ordenado) e naturalista
+(faixas de luz e sombra por máscara, listras por interseção de máscaras, borrado leve e
+textura de pincel multiplicada). Um quinto tom, **2.5D** (sério + naturalista, no jeito de
+Don't Starve): câmera inclinada sobre um chão com profundidade, cada coisa um recorte pintado
+em 3× (faixas de luz e sombra, borda quente, contorno de tinta) posto em (x, z) e reduzido com a
+distância, neblina pela distância, sombra redonda no chão, ordem de desenho de longe para perto e
+a câmera deslizando de lado (paralaxe). Um sexto, **3D com recortes**: chão, morros e vulcão como malhas (luz nos vértices, z-buffer do `tres_d` em 1/3 da resolução) e os recortes em pé, de frente para a câmera, compostos só onde o chão não está na frente; a câmera gira 90° e volta. A tecla C troca de cena; a grade se ajusta (3×2 ou 2×2).
+O cache em disco agora tem versão por estilo. Corrigido: o rodapé usava `anchor="midtop"`,
+que o renderer não conhece (caía em `topleft`).
+
 **Pesquisa de técnicas (2026-11-11), já aplicada na vitrine** (cada uma vira peça da
 engine em M19/M22):
 
@@ -898,6 +911,18 @@ O TerrorPS1 v0.2 a usa crescendo com o vulto perto.
 **Espelho e foto (2026-11-12):** `Estilo3D.espelhar` espelha a imagem 3D na composição (a UI
 2D não), e `IRenderer3D.ler_pixels` (opcional, padrão `None`) devolve o quadro 3D já
 desenhado -- o TerrorPS1 usa os dois na noite espelhada e na câmera.
+
+**Recortes (billboards), 2026-11-14:** pedido do Biogênia (blueprint GAM-13), que escolheu o
+3D com recortes de Don't Starve depois de comparar na vitrine. `IRenderer3D` ganhou
+`criar_recorte(imagem RGBA, pe)`, `atualizar_recorte`, `remover_recorte` e
+`desenhar_recorte(id, posicao, altura, espelhar=, sombra=)` (não abstratos: backend sem suporte
+levanta `NotImplementedError`). No ModernGL: a imagem vira textura com mipmaps (pintada grande,
+reduz sem serrilhar); o recorte fica em pé com o pé na posição e gira só em volta do eixo y para
+encarar a câmera; alfa < 0,5 é descartado, então o z-buffer funciona sem ordenar; recebe a
+neblina, não a luz (a luz vem pintada); a sombra é um disco translúcido no chão, sem escrever no
+z-buffer (desenhe o chão antes). Ignora tremor e 15 bits por enquanto. Testes em
+`tests/integration/test_gl_renderer3d.py` (em pé, transparente, espelho, gira para a câmera,
+z-buffer, sombra).
 
 **Próximos passos do M21:**
 1. Os construtores de malha (`bloco`, `cone`, `icosaedro`, `chao`) saem da vitrine para a engine.

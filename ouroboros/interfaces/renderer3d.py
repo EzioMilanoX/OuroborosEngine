@@ -110,6 +110,34 @@ class IRenderer3D(ABC):
         uint8, de cima para baixo -- uma "foto" do jogo. Backend que nao sabe: None."""
         return None
 
+    # ------------------------------------------------------------ recortes (billboards)
+    # Uma imagem pintada em pe no mundo, sempre de frente para a camera -- o 3D de Don't
+    # Starve: chao e cenario em malha, bichos e plantas como recortes de papel. Nao sao
+    # abstratos: um backend sem suporte levanta NotImplementedError.
+
+    def criar_recorte(self, imagem: np.ndarray, pe: Tuple[float, float]) -> int:
+        """`imagem` (altura, largura, 4) RGBA uint8, de cima para baixo (pintada maior do que
+        aparece: o backend reduz sem serrilhar). `pe`: o pixel (x, y) da imagem que encosta no
+        chao. Devolve o id do recorte."""
+        raise NotImplementedError
+
+    def atualizar_recorte(self, recorte_id: int, imagem: np.ndarray, pe: Tuple[float, float]) -> None:
+        """Troca a imagem (um quadro de animacao); o tamanho pode mudar."""
+        raise NotImplementedError
+
+    def remover_recorte(self, recorte_id: int) -> None:
+        raise NotImplementedError
+
+    def desenhar_recorte(self, recorte_id: int, posicao: Vec3, altura: float, *, espelhar: bool = False,
+                         sombra: float = 0.0) -> None:
+        """Desenha o recorte neste quadro com o pe em `posicao` e `altura` em unidades de mundo
+        (a largura sai da proporcao da imagem). Ele so gira em volta do eixo vertical para
+        encarar a camera. O transparente (alfa < 0,5) e descartado: o z-buffer funciona sem
+        ordenar, e um morro na frente esconde quem esta atras. Recebe a neblina, nao a luz (a
+        luz ja vem pintada). `espelhar`: vira na horizontal. `sombra`: raio de uma sombra
+        redonda e translucida no chao embaixo (0: nenhuma) -- desenhe o chao antes."""
+        raise NotImplementedError
+
 
 def translacao_e_giro_y(x: float, y: float, z: float, giro: float = 0.0) -> np.ndarray:
     """Matriz de modelo: gira `giro` radianos em volta do eixo y e leva para (x, y, z)."""

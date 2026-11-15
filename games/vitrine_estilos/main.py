@@ -4,28 +4,31 @@
 
 """
 Vitrine de estilos (ROADMAP fase 8): a mesma cena em ilustracao cel-shading, pixel art,
-tinta/sumi-e, flat com luz e low poly 3D, para comparar o que a engine pode mostrar.
+tinta/sumi-e, flat com luz e low poly 3D, para comparar o que a engine pode mostrar; e uma
+segunda cena, Biogenia (o fim do Cretaceo), em seis tons possiveis para o jogo.
 
 Rodar a partir da raiz do repositorio:
 
-    python -m games.vitrine_estilos.main
+    python -m games.vitrine_estilos.main            # comeca no espadachim
+    python -m games.vitrine_estilos.main biogenia   # comeca em Biogenia
 
-Controles: 1-5 abre um estilo em tela cheia, G volta para a grade, A/D troca, ESC sai.
+Controles: 1-6 abre um estilo em tela cheia, G volta para a grade, A/D troca, C troca de
+cena, ESC sai.
 """
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
-from ouroboros.bootstrap.engine_config import EngineConfig
-
 from games.vitrine_estilos.composition import build_game
+from ouroboros.bootstrap.engine_config import EngineConfig
 
 _CONFIG_PATH = Path(__file__).resolve().parent / "config.json"
 
 
 def main() -> int:
     config = EngineConfig.from_json(str(_CONFIG_PATH))
-    game_loop = build_game(config)
+    game_loop = build_game(config, cena=1 if "biogenia" in sys.argv[1:] else 0)
     try:
         game_loop.run()
     finally:

@@ -14,10 +14,9 @@ from pathlib import Path
 import pygame
 import pytest
 
-from ouroboros.bootstrap.engine_config import EngineConfig
-
-from games.vitrine_estilos import arte
+from games.vitrine_estilos import arte, biogenia
 from games.vitrine_estilos.composition import build_game
+from ouroboros.bootstrap.engine_config import EngineConfig
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 _CONFIG_PATH = _REPO_ROOT / "games" / "vitrine_estilos" / "config.json"
@@ -80,13 +79,49 @@ def test_a_vitrine_monta_troca_de_estilo_e_desenha(tmp_path):
     loop = build_game(EngineConfig.from_json(str(_CONFIG_PATH)), pasta=tmp_path)
     cena = loop.current_scene
     loop.tick_once(1 / 60)
-    assert len(list(tmp_path.glob("*.png"))) == arte.QUADROS * len(arte.ESTILOS)
+    assert len(list(tmp_path.glob("*.png"))) == arte.QUADROS * (len(arte.ESTILOS) + len(biogenia.ESTILOS))
     assert cena.foco is None  # comeca na grade
     cena.foco = 2
     loop.tick_once(1 / 60)
     tela = pygame.display.get_surface()
     assert pygame.transform.average_color(tela)[0] > 180  # o papel do sumi-e na tela toda
+    cena.cena, cena.foco = 1, None  # a cena de Biogenia: a grade 2x2
+    assert cena.estilos == biogenia.ESTILOS
+    loop.tick_once(1 / 60)
+    cena.foco = 1
+    loop.tick_once(1 / 60)
+    assert pygame.transform.average_color(pygame.display.get_surface())[0] < 90  # a silhueta, escura
     loop.renderer.shutdown()
+
+
+@pytest.fixture(scope="module")
+def tons():
+    pygame.init()
+    pygame.display.set_mode((1, 1))
+    return {e: biogenia.gerar(e) for e in biogenia.ESTILOS}
+
+
+def test_biogenia_cada_tom_gera_todos_os_quadros_e_sao_diferentes(tons):
+    for estilo, qs in tons.items():
+        assert len(qs) == arte.QUADROS, estilo
+        assert all(q.get_size() == (arte.LARGURA, arte.ALTURA) for q in qs), estilo
+    medias = {e: pygame.transform.average_color(qs[0])[:3] for e, qs in tons.items()}
+    assert len(set(medias.values())) == len(biogenia.ESTILOS)
+    assert sum(medias["bio_leve"]) > sum(medias["bio_silhueta"]) + 150  # o leve e claro; a silhueta, escura
+
+
+def test_biogenia_pixel_art_sai_em_blocos_nitidos(tons):
+    q = tons["bio_pixel"][0]
+    for x in range(0, 60, 6):
+        assert q.get_at((x, 30)) == q.get_at((x + 5, 30))
+
+
+def test_biogenia_o_laco_fecha_e_o_rato_sobe_e_desce():
+    assert biogenia.rato(0.0) == biogenia.rato(1.0)
+    a, b = biogenia.trex(0.0), biogenia.trex(1.0)
+    assert all(abs(p[0] - q[0]) < 1e-6 and abs(p[1] - q[1]) < 1e-6 for p, q in zip(a["corpo"], b["corpo"]))
+    assert biogenia.rato(0.4)["fora"] and not biogenia.rato(0.9)["fora"]  # olha o ceu; depois, escondido
+    assert biogenia.rato(0.9)["corpo"][1] > biogenia.SOLO  # la embaixo, no tunel
 
 
 def test_low_poly_e_3d_de_verdade_e_a_camera_passeia(quadros):

@@ -115,3 +115,65 @@ def test_espelhar_inverte_a_imagem_na_horizontal(r3d):
     limpo = _composto(r3d, Estilo3D(fundo=(0, 0, 0)))
     espelho = _composto(r3d, Estilo3D(fundo=(0, 0, 0), espelhar=True))
     assert np.array_equal(espelho, limpo[:, ::-1])
+
+
+# ------------------------------------------------------------ recortes (billboards)
+
+def _meio_vermelho(espelhado: bool = False) -> np.ndarray:
+    """8x16 RGBA: a metade da direita vermelha e opaca, a da esquerda transparente."""
+    img = np.zeros((16, 8, 4), dtype=np.uint8)
+    img[:, 4:] = (255, 0, 0, 255)
+    return img
+
+
+def _quadro_recorte(r, rid, camera=(0.0, 0.0, 5.0), antes=(), **kw):
+    r.definir_estilo(Estilo3D(fundo=(0, 0, 0)))
+    r.definir_iluminacao(Iluminacao3D(ceu=(1, 1, 1), solo=(1, 1, 1)))
+    r.definir_camera(camera, (0.0, 0.0, 0.0), 60.0)
+    for m in antes:
+        r.desenhar(m, None)
+    r.desenhar_recorte(rid, (0.0, -1.0, 0.0), 2.0, **kw)
+    px = r.ler_pixels()
+    r.desenhou = False
+    return px
+
+
+def test_recorte_fica_em_pe_e_o_transparente_mostra_o_fundo(r3d):
+    rid = r3d.criar_recorte(_meio_vermelho(), (4, 16))  # o pe: embaixo, no meio
+    px = _quadro_recorte(r3d, rid)
+    assert tuple(px[24, 34]) == (255, 0, 0)  # a metade opaca, a direita do meio
+    assert tuple(px[24, 29]) == (0, 0, 0)  # a transparente: o fundo
+    assert tuple(px[4, 34]) == (0, 0, 0)  # 2 de altura: nao chega ao topo da tela
+
+
+def test_recorte_espelhado_vira_na_horizontal(r3d):
+    rid = r3d.criar_recorte(_meio_vermelho(), (4, 16))
+    px = _quadro_recorte(r3d, rid, espelhar=True)
+    assert tuple(px[24, 29]) == (255, 0, 0) and tuple(px[24, 34]) == (0, 0, 0)
+
+
+def test_recorte_gira_para_encarar_a_camera(r3d):
+    rid = r3d.criar_recorte(np.full((16, 8, 4), 255, dtype=np.uint8), (4, 16))
+    de_lado = _quadro_recorte(r3d, rid, camera=(5.0, 0.0, 0.0))  # a camera foi para o lado
+    assert de_lado[24, 32].min() > 200  # continua de frente (um plano fixo sumiria de perfil)
+
+
+def test_recorte_respeita_o_z_buffer(r3d):
+    rid = r3d.criar_recorte(np.full((16, 8, 4), 255, dtype=np.uint8), (4, 16))
+    verde = r3d.criar_malha(_quadrado(1.0), np.full((6, 3), (0, 255, 0)))  # na frente do recorte
+    px = _quadro_recorte(r3d, rid, antes=(verde,))
+    assert tuple(px[24, 32]) == (0, 255, 0)
+
+
+def test_sombra_escurece_o_chao_embaixo_do_recorte(r3d):
+    vazio = np.zeros((16, 8, 4), dtype=np.uint8)  # um recorte invisivel: so a sombra aparece
+    rid = r3d.criar_recorte(vazio, (4, 16))
+    lado = 6.0
+    a, b, c, d = (-lado, -1.0, lado), (lado, -1.0, lado), (lado, -1.0, -lado), (-lado, -1.0, -lado)
+    chao = r3d.criar_malha(np.array([a, b, c, a, c, d], dtype=np.float32), np.full((6, 3), (200, 200, 200)))
+    cam = (0.0, 4.0, 4.0)
+    sem = _quadro_recorte(r3d, rid, camera=cam, antes=(chao,))
+    com = _quadro_recorte(r3d, rid, camera=cam, antes=(chao,), sombra=1.0)
+    y, x = np.unravel_index(np.argmax(sem.sum(axis=2) - com.sum(axis=2)), sem.shape[:2])
+    assert int(sem[y, x].sum()) - int(com[y, x].sum()) > 100  # escureceu bem
+    assert tuple(sem[5, 5]) == tuple(com[5, 5])  # longe dela, nada muda
