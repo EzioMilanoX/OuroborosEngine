@@ -44,7 +44,6 @@ def test_stack_starts_with_a_single_gameplay_scene(game_loop: GameLoop):
 
 def test_push_scene_calls_on_exit_of_previous_top_and_on_enter_of_new_top(game_loop: GameLoop):
     calls = []
-    base = game_loop.current_scene
     scene_a = RecordingScene("a", calls)
 
     game_loop.push_scene(scene_a)

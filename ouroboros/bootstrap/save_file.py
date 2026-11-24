@@ -31,7 +31,6 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Optional
 
 
 def default_save_path(app_name: str, file_name: str = "save.json") -> Path:

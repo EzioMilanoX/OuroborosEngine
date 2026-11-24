@@ -13,7 +13,6 @@ enorme, nao -1).
 """
 from __future__ import annotations
 
-import numpy as np
 import pytest
 
 from ouroboros.core.memory.handles import NULL_PACKED_HANDLE, unpack_index

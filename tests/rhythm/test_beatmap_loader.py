@@ -8,7 +8,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import numpy as np
 import pytest
 
 from ouroboros.rhythm.beatmap_format import BEATMAP_SCHEMA_VERSION

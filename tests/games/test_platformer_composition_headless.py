@@ -17,7 +17,7 @@ from ouroboros.bootstrap.engine_config import EngineConfig
 from ouroboros.bootstrap.game_loop import GameLoop
 from ouroboros.core.systems.tile_collision_system import TileCollisionSystem
 
-from games.platformer.composition import CELL_SIZE, MOVE_SPEED, build_game
+from games.platformer.composition import MOVE_SPEED, build_game
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 _CONFIG_PATH = _REPO_ROOT / "games" / "platformer" / "config.json"

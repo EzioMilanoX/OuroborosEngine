@@ -68,6 +68,8 @@ grid/pathfinding/turno, e um modelo de dados sem ECS.
 | 6 — Platformer (colisao de tiles) | `ouroboros.core.grid2d` + `games.platformer` | vertical slice jogavel |
 | 7 — Turn-based Tactics (grid/pathfinding/turno) | `ouroboros.tactics` + `games.tactics` | vertical slice jogavel |
 | 8 — Card Game (cartas/zonas/efeitos, sem ECS) | `ouroboros.cardgame` + `games.card_game` | vertical slice jogavel |
+| 9 — 3D (render GL, colisao, malhas) | `interfaces.renderer3d` + `adapters.gl_backend` + `core.colisao3d` + `interfaces.malhas3d` | usado por TerrorPS1 e Biogenia (render); colisao/malhas prontas, sem consumidor ainda |
+| — Replay (entradas por quadro, arquivo, dessincronizacao) | `bootstrap.replay` | usado pelo BulletHell |
 
 ## Status
 

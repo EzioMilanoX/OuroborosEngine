@@ -924,8 +924,53 @@ z-buffer (desenhe o chão antes). Ignora tremor e 15 bits por enquanto. Testes e
 `tests/integration/test_gl_renderer3d.py` (em pé, transparente, espelho, gira para a câmera,
 z-buffer, sombra).
 
+**Colisão 3D e construtores de malha (2026-11-23) — passo 1 feito.** O TerrorPS1 resolvia
+colisão em `regras.colidir` (o jogador como círculo em x/z contra círculos e caixas, numa grade
+4×4 em dicionário) e o Biogenia em `mundo._andar` (raio do mundo, túneis por distância a
+segmento); os dois copiavam os construtores da vitrine. Agora a engine tem:
+- **`ouroboros.core.colisao3d`** (puro, sem pygame/moderngl): `AABB`/`Esfera`/`Capsula`/`Raio`,
+  `sobrepoe`/`contato`/`raycast`/`raio_triangulo`; `Relevo` (mapa de alturas: altura, normal e
+  raio exatos, a mesma diagonal por célula da malha); `MundoColisao3D` com as formas em SoA
+  (NumPy), grade uniforme em x/z (CSR: contagem + prefixo + entradas, carimbo para não repetir
+  candidato), raio por DDA (Amanatides-Woo) parando quando o melhor acerto fica antes da próxima
+  célula, `tem_visao`, e `mover_capsula`/`mover_esfera`: passos de meio raio, até 4 empurrões por
+  passo, rampa até 50° é chão, mais íngreme empurra só na horizontal, sonda de chão.
+  Segmento × caixa é exato (mínimo de uma quadrática convexa por trechos nos 6 planos), não
+  por projeções alternadas — estas erravam com o segmento quase paralelo a uma face (achado pelo
+  teste de força bruta).
+- **`ouroboros.interfaces.malhas3d`**: `caixa`, `bloco`, `plano`, `terreno`, `disco`, `cilindro`,
+  `cone`, `esfera`, `extrusao` → `Malha` (os arrays de `criar_malha`), virados para fora por
+  construção (`_orientar` pela direção esperada, não pela ordem escrita à mão). O backend GL
+  desenha os dois lados (`CULL_FACE` desligado), então o que a orientação decide é a luz.
+- **Medido** (1.200 troncos + parede + relevo): ~30 µs por `mover_capsula`, ~40 µs por
+  `raycast` de 30 m; 5 mil movimentos + raios sem disparar o coletor (teste).
+- Fora de escopo por ora: degraus (subir meio-fio), malha arbitrária como colisor (só formas e
+  relevo), corpos dinâmicos se empurrando, recorte de triângulo no plano próximo.
+
 **Próximos passos do M21:**
-1. Os construtores de malha (`bloco`, `cone`, `icosaedro`, `chao`) saem da vitrine para a engine.
+1. ~~Os construtores de malha saem da vitrine para a engine~~ (feito, acima). Falta migrar
+   TerrorPS1 (`malhas.py`, `regras.colidir`, `Mapa.circulos_perto`) e Biogenia (`malhas.py`,
+   `mundo.altura` → `Relevo`) quando o Enzo pedir; a vitrine continua com o rasterizador de CPU.
 2. Recorte no plano próximo e materiais com textura (afim, como o PS1).
 3. Medir o custo da camada 2D (sobe 960×540 RGBA por quadro) e só subir quando mudar.
 4. Fatia vertical do SEN-04 (no repo TerrorPS1): a memória fora do cone (M.I.R.A.G.E.) e o perseguidor que ouve (S.H.A.D.O.W.).
+
+## Replay na engine (2026-11-23)
+
+O BulletHell tinha o replay (`bullethell/replay.py`, herdado do `ReplayRecorder` do legado): um
+bitmask de ações + dt por quadro numa `list` de tuplas, tocado por um `IInputProvider` sintético.
+Subiu para **`ouroboros.bootstrap.replay`**, genérico:
+- `ActionMask` (até 64 ações, a ordem vai no arquivo), `ReplayRecorder` (bits/dt e, opcionais,
+  eixos e cursor em arrays pré-alocados que dobram se encherem; semente, versão do jogo, `meta`),
+  `Replay` (`save`/`load` em JSON com arrays zlib+base64, escrita atômica pelo `SaveFile`,
+  `ReplayError` para ausente/corrompido/formato novo/outra versão) e `ReplayInputProvider`.
+- Dessincronização: `hash_every=N` + `world_state_hash(world, pools)` (CRC32 de contagem,
+  entidades e dados ativos das pools escolhidas, sem copiar) a cada N quadros; ao reproduzir,
+  `verify` guarda o primeiro quadro diferente em `desync_frame`.
+- Fica em `bootstrap` (não em `core`) porque implementa `IInputProvider` e grava arquivo; o
+  contrato 2 do import-linter ganhou o módulo.
+- O BulletHell passou a usar o da engine (cópia local removida) e confere o estado 1×/s; um
+  cheat do dev mode durante a gravação aparece como `REPLAY (DESSINCRONIZOU)`.
+- **Atenção ao wheel:** o CI do BulletHell instala `wheels/ouroboros_engine-*.whl` (commit
+  05ad40a), que não tem este módulo. Depois de commitar a engine, rode
+  `BulletHell/tools/build_engine_wheel.ps1` e commite o wheel novo junto com o BulletHell.

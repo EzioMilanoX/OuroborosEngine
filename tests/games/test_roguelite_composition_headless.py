@@ -14,7 +14,6 @@ import pytest
 
 from ouroboros.bootstrap.engine_config import EngineConfig
 from ouroboros.bootstrap.game_loop import GameLoop
-from ouroboros.bootstrap.scene import GameplayScene
 from ouroboros.interfaces.renderer import SHAPE_RECT
 from ouroboros.roguelite.combat.schemas import EntityKind
 from ouroboros.roguelite.generation.dungeon_generator import DungeonGenerator

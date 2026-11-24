@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from ouroboros.core.memory.handles import NULL_PACKED_HANDLE, unpack_index
+from ouroboros.core.memory.handles import NULL_PACKED_HANDLE
 from ouroboros.rhythm.runtime.osu_spawner_system import OsuSpawnerSystem
 from ouroboros.rhythm.runtime.schemas import OSU_NOTE_STATE_DTYPE, OSU_SCHEDULED_HIT_DTYPE, OsuObjectKind
 

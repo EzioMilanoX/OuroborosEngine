@@ -18,12 +18,10 @@ Os dois so falham em maquina de outra pessoa -- disco cheio, pasta
 somente-leitura, desligamento no meio da escrita, bundle descompactado num
 temporario. Por isso os testes forjam essas situacoes em vez de esperar.
 """
-import json
 import os
 import sys
 from pathlib import Path
 
-import pytest
 
 from ouroboros.bootstrap.resources import ResourceRoot, frozen_root, is_frozen
 from ouroboros.bootstrap.save_file import SaveFile, default_save_path

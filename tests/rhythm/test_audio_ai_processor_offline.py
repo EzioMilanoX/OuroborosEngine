@@ -54,7 +54,7 @@ def test_process_distributes_lanes_deterministically(tmp_path, synthetic_wav_fac
     output_path = tmp_path / "beatmap.json"
 
     processor = _build_processor(lane_count=3)
-    result = processor.process(audio_path=wav_path, beatmap_output_path=output_path, track_id="lane_track")
+    processor.process(audio_path=wav_path, beatmap_output_path=output_path, track_id="lane_track")
 
     with open(output_path, "r", encoding="utf-8") as f:
         beatmap_dict = json.load(f)

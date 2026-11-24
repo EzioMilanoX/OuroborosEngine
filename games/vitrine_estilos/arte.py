@@ -365,7 +365,7 @@ _PIXEL_FUNDO: Optional[pygame.Surface] = None
 def _pixel(q: int) -> pygame.Surface:
     global _PIXEL_FUNDO
     k = K_PIXEL
-    w, h = LARGURA // k, ALTURA // k
+    w = LARGURA // k
     if _PIXEL_FUNDO is None:
         _PIXEL_FUNDO = _pixel_fundo()
     s = _PIXEL_FUNDO.copy()

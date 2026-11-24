@@ -6,7 +6,6 @@
 import numpy as np
 import pytest
 
-from ouroboros.rhythm.offline.audio_loader import AudioLoader
 from ouroboros.rhythm.offline.beatmap_schema import BeatmapValidator, ScheduledThreatDefinition
 from ouroboros.rhythm.offline.extraction_profiles import (
     EXTRACTION_PROFILES,
@@ -14,7 +13,6 @@ from ouroboros.rhythm.offline.extraction_profiles import (
     LAYER_VOCAL,
     estimate_bpm_from_pulses,
     extract_with_profile,
-    select_curve_peaks,
 )
 from ouroboros.rhythm.runtime.beatmap_loader import BeatmapLoader
 
