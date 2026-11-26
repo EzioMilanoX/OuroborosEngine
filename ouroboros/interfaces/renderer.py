@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Optional, Sequence, Tuple
 import numpy as np
 
 if TYPE_CHECKING:
+    from ouroboros.core.ascii import FiltroAscii, TelaAscii
     from ouroboros.interfaces.renderer3d import IRenderer3D
 
 # Formas primitivas resolvidas por `texture_ids` enquanto nao ha pipeline
@@ -159,6 +160,28 @@ class IRenderer(ABC):
         (0.5, 1.0) o meio da base (pes de um personagem). `flip_x` espelha na
         horizontal; `alpha` 0..255; `scale` multiplica o tamanho. Textura
         desconhecida nao desenha nada. Default: no-op."""
+
+    # Modo ASCII (ROADMAP M22). Camada de apresentacao, como as primitivas de UI:
+    # nao abstratos, default no-op/None -- backend sem fonte continua valido.
+
+    def draw_ascii(self, tela: "TelaAscii", x: float = 0.0, y: float = 0.0,
+                   tamanho: int = 16) -> None:
+        """Desenha a grade de caracteres `tela` (`ouroboros.core.ascii.TelaAscii`) em
+        coordenadas de TELA, canto superior esquerdo em `(x, y)`, com uma fonte
+        monoespacada de `tamanho` pontos: cada celula ocupa `ascii_cell_size(tamanho)`
+        pixels, o fundo (se a tela tiver) sai por baixo e o espaco nao desenha nada.
+        Default: no-op."""
+
+    def ascii_cell_size(self, tamanho: int = 16) -> Optional[Tuple[int, int]]:
+        """`(largura, altura)` em pixels de uma celula de `draw_ascii` com essa fonte (para
+        saber quantas colunas cabem na tela). Default: None (backend sem ASCII)."""
+        return None
+
+    def set_ascii_filter(self, filtro: Optional["FiltroAscii"]) -> None:
+        """Liga (`FiltroAscii`) ou desliga (`None`) o filtro ASCII: no `end_frame`, o quadro
+        ja desenhado vira caracteres pela luminancia de cada celula, com a cor media da
+        celula -- qualquer jogo existente ganha um "modo ASCII" sem mudar o desenho.
+        Desligado por padrao. Default: no-op."""
 
     def renderer_3d(self) -> Optional["IRenderer3D"]:
         """O render 3D deste backend (ROADMAP M21), ou None se ele so faz 2D. Com 3D, a

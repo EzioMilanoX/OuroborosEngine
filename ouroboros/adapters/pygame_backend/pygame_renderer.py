@@ -11,6 +11,8 @@ from typing import Dict, Optional, Sequence, Tuple
 import numpy as np
 import pygame
 
+from ouroboros.adapters.pygame_backend.ascii_pygame import DesenhistaAscii
+from ouroboros.core.ascii import FiltroAscii, TelaAscii
 from ouroboros.interfaces.renderer import IRenderer, SHAPE_CIRCLE, SHAPE_RING
 
 _TEXT_CACHE_MAX = 512
@@ -73,6 +75,9 @@ class PygameRenderer(IRenderer):
         # `draw_batch` por pressao de GC.
         self._field_masks: Dict[tuple, pygame.Surface] = {}
         self._field_surfaces: Dict[tuple, pygame.Surface] = {}
+        # Modo ASCII (ROADMAP M22): criado no primeiro uso; filtro desligado por padrao.
+        self._ascii: Optional[DesenhistaAscii] = None
+        self._filtro_ascii: Optional[FiltroAscii] = None
 
     def initialize(self, width: int, height: int, title: str) -> None:
         pygame.init()
@@ -450,7 +455,27 @@ class PygameRenderer(IRenderer):
             tmp.set_alpha(int(alpha))
             self._surface.blit(tmp, (px, py))
 
+    def _desenhista_ascii(self) -> DesenhistaAscii:
+        if self._ascii is None:
+            self._ascii = DesenhistaAscii()
+        return self._ascii
+
+    def draw_ascii(self, tela: TelaAscii, x: float = 0.0, y: float = 0.0,
+                   tamanho: int = 16) -> None:
+        self._desenhista_ascii().desenhar(self._surface, tela, x, y, tamanho)
+
+    def ascii_cell_size(self, tamanho: int = 16) -> Optional[Tuple[int, int]]:
+        return self._desenhista_ascii().celula(tamanho)
+
+    def set_ascii_filter(self, filtro: Optional[FiltroAscii]) -> None:
+        self._filtro_ascii = filtro
+
+    def _aplicar_filtro_ascii(self) -> None:
+        if self._filtro_ascii is not None:
+            self._desenhista_ascii().filtrar(self._surface, self._filtro_ascii)
+
     def end_frame(self) -> None:
+        self._aplicar_filtro_ascii()
         pygame.display.flip()
 
     def get_viewport_size(self) -> Tuple[int, int]:

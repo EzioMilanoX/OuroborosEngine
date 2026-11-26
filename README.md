@@ -42,6 +42,44 @@ grid/pathfinding/turno, e um modelo de dados sem ECS.
   o fim do Cretaceo em corte lateral (o tiranossauro, o mamifero na toca, o ponto no ceu) em
   seis tons possiveis para o jogo: leve, silhueta, pixel art, naturalista, 2.5D e 3D com recortes
   (`games/vitrine_estilos/biogenia.py`; abrir direto com `... main biogenia`).
+- **ASCII Knight** (`games/ascii_knight/`) — um cavaleiro em arte ASCII numa arena em visão 3/4,
+  com pilares, árvores e inimigos ordenados pela fila de profundidade, sombra no chão e pulo.
+  Setas/WASD andam, espaço ataca, J pula, F troca ASCII nativo / filtro ASCII / render normal,
+  P troca a projeção (3/4, isométrica, de cima). Rodar com `python -m games.ascii_knight.main`.
+
+## Projeções e modo ASCII
+
+```python
+from ouroboros.core.projecao import Projecao, FilaProfundidade, TRES_QUARTOS
+from ouroboros.core.ascii import TelaAscii, SpriteAscii, AnimacaoAscii, FiltroAscii
+
+proj = Projecao(TRES_QUARTOS, centro=(480, 320), tela=(960, 540), zoom=1.0)  # ou DE_CIMA, ISOMETRICA
+sx, sy = proj.tela_de(x, y, z)        # mundo (chão x, y; altura z) -> pixel
+x, y = proj.mundo_de(sx, sy)          # pixel -> ponto do chão (o cursor)
+proj.tela_de_lote(xs, ys, zs, out_x, out_y)    # muitas entidades, sem alocar
+sx, sy, rx, ry, forca = proj.sombra(x, y, z, raio)  # a elipse da sombra no chão
+
+fila = FilaProfundidade(256)          # por quadro: limpar, adicionar, ordenar
+fila.limpar()
+fila.adicionar(ident, proj.profundidade(x, y), z, camada)
+for ident in fila.ordenar(): ...      # de trás para a frente
+
+tela = TelaAscii(120, 36)             # ASCII nativo
+heroi = SpriteAscii("""
+  ,~
+ [o=]
+ /|#|\\
+""", cor_por_caractere={"#": (200, 50, 60)})
+tela.limpar()
+tela.sprite(heroi, col, linha, espelhado=olhando_esquerda)
+renderer.draw_ascii(tela, 0, 0, tamanho=14)  # célula: renderer.ascii_cell_size(14)
+
+renderer.set_ascii_filter(FiltroAscii(tamanho_fonte=12))  # qualquer jogo vira ASCII; None desliga
+```
+
+O filtro também liga pela configuração do jogo: `"ascii_filter": true` (ou um objeto com os
+campos de `FiltroAscii`, ex.: `{"tamanho_fonte": 10, "area": [0, 0, 960, 500]}`) no JSON do
+`EngineConfig`. Fica desligado por padrão e ainda não vale no backend `gl`.
 
 ## A Constituicao da Engine
 

@@ -699,7 +699,7 @@ de tela, junto das outras primitivas de UI. Até aqui textura só entrava por `d
 Verificado: 5 testes novos (`tests/interfaces/test_ui_image.py`: âncora nos pés, espelho,
 escala e alfa, textura desconhecida, default no-op) + suíte completa passando.
 
-## Fase 8 — Vários estilos de arte (M19–M22) — planejada
+## Fase 8 — Vários estilos de arte (M19–M22) — em andamento (M20 e o estilo ASCII prontos)
 
 Pedido do Enzo depois dos sprites do Ryoiki: a engine deve servir bem a **quatro estilos**
 (ilustração cel-shading, pixel art, tinta/sumi-e e flat vetorial com luz), priorizando
@@ -721,6 +721,15 @@ verdade está em desenhar na GPU (M21), não em micro-otimizar o backend de CPU.
 2. **M20 — Câmera e projeções.** `Projecao` com `tela_de(x, y, z)` / `mundo_de`:
    de cima, 3/4 (achata o chão, como o Ryoiki faz hoje), isométrica; e uma fila de
    desenho por profundidade (y, depois z) para figuras em pé, sombras e projéteis.
+   **Pronto (2026-11-25)** em `ouroboros/core/projecao.py`: os três modos são o mesmo mapa
+   linear do chão (girar, achatar, zoom) mais a altura subindo, com inversa exata no plano da
+   altura z; versões em lote em arrays já alocados; elipse e sombra no chão; a
+   `FilaProfundidade` ordena um array estruturado no lugar (profundidade, z, camada, id).
+   Na isométrica a chave de ordem é `profundidade(x, y)` (x + y), não o y cru. Zero-GC
+   conferido com `gc.callbacks`. **Próximo:** o Ryoiki pode trocar a `Camera.tela_de/mundo_de`
+   e o `ESCALA_Y` dele (`ryoiki/movimento.py`, usados em `visual.py`/`figuras.py`) pela
+   `Projecao` da engine (o seguir com suavidade e o limite da arena continuam no jogo); não
+   migrado ainda.
 3. **M21 — Backend GPU opcional** (`pygame._sdl2.video`: `Renderer`/`Texture`): o mesmo
    `IRenderer` com as primitivas de UI e `draw_ui_image` na GPU; escala, rotação e
    transparência quase de graça; modos de mistura (aditivo, multiplicar). Cada jogo
@@ -728,6 +737,21 @@ verdade está em desenhar na GPU (M21), não em micro-otimizar o backend de CPU.
 4. **M22 — Estilos.** Tinta/sumi-e: traço de pincel com espessura variável e textura
    (manchas, respingos); flat com luz: brilho aditivo e bloom (camada fora da tela
    borrada); cel-shading e pixel art já cobertos por M19.
+   **Estilo ASCII — pronto (2026-11-25).** Pedido do Enzo ("ASCII knight"). No núcleo,
+   `ouroboros/core/ascii.py`: `TelaAscii` (caractere, cor e fundo opcional em arrays;
+   primitivas sem alocar), `SpriteAscii` (várias linhas, transparente escolhível, âncora nos
+   pés, espelho montado uma vez trocando `/`↔`\`, `(`↔`)`…, cores por mapa/paleta ou por
+   caractere), `AnimacaoAscii` e `preencher_por_luminancia` (o coração do filtro). Na
+   interface, três métodos não abstratos: `draw_ascii`, `ascii_cell_size`,
+   `set_ascii_filter`. No pygame (`ascii_pygame.py`): glifo renderizado uma vez por
+   caractere + cor + tamanho e desenhado com `fblits`; fundo como uma superfície de uma
+   célula por pixel ampliada por vizinho mais próximo; o filtro reduz a área por média
+   (`smoothscale`), escolhe o caractere pela luminância (Rec. 709) e quantiza a cor
+   (`niveis_cor`) para o cache de glifos não explodir. Medido a 960×540: filtro ~2–4 ms por
+   quadro, `draw_ascii` de 120×38 células ~2 ms. O filtro ainda não vale no `GLRenderer` (o
+   3D não passa pela superfície do pygame). Demo: `games/ascii_knight/` (arena 3/4 com
+   pilares e árvores, inimigos, sombra, pulo, F troca ASCII nativo/filtro/normal, P troca a
+   projeção).
 
 **Vitrine (2026-11-11):** `games/vitrine_estilos/` mostra os quatro estilos na mesma cena,
 para escolher o rumo antes de M19–M22. Hoje cada estilo é pintado pelo próprio jogo

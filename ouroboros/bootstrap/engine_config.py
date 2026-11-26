@@ -7,6 +7,9 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from typing import Any, Optional
+
+from ouroboros.core.ascii import FiltroAscii
 
 
 @dataclass(frozen=True)
@@ -25,6 +28,10 @@ class EngineConfig:
     difficulty_path: str
     input_bindings_path: str
     renderer: str = "pygame"  # "pygame" (2D, CPU) ou "gl" (placa de video + 3D, ROADMAP M21)
+    # Filtro ASCII ligado desde o inicio (ROADMAP M22). No JSON, `"ascii_filter": true` usa o
+    # padrao e um objeto escolhe os campos de `FiltroAscii` (ex.: `{"tamanho_fonte": 10}`).
+    # Ausente/false: desligado (como sempre foi).
+    ascii_filter: Optional[FiltroAscii] = None
 
     @staticmethod
     def from_json(config_path: str) -> "EngineConfig":
@@ -39,4 +46,18 @@ class EngineConfig:
             difficulty_path=raw["difficulty_path"],
             input_bindings_path=raw["input_bindings_path"],
             renderer=raw.get("renderer", "pygame"),
+            ascii_filter=_filtro_ascii(raw.get("ascii_filter")),
         )
+
+
+def _filtro_ascii(valor: Any) -> Optional[FiltroAscii]:
+    if not valor:
+        return None
+    if valor is True:
+        return FiltroAscii()
+    if isinstance(valor, dict):
+        campos = dict(valor)
+        if campos.get("area") is not None:
+            campos["area"] = tuple(int(v) for v in campos["area"])
+        return FiltroAscii(**campos)
+    raise ValueError(f"ascii_filter deve ser true/false ou um objeto, nao {valor!r}")
