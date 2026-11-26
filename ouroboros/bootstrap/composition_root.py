@@ -136,6 +136,8 @@ class CompositionRoot:
         else:
             renderer = PygameRenderer()
         renderer.initialize(self._config.window_width, self._config.window_height, self._config.window_title)
+        if self._config.ascii_filter is not None:
+            renderer.set_ascii_filter(self._config.ascii_filter)
 
         input_provider = PygameInputProvider()
         input_provider.load_bindings(self._config.input_bindings_path)

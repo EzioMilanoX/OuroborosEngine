@@ -11,6 +11,9 @@ transparente que vai para a GPU como textura e e composta POR CIMA do 3D. O 3D e
 
 Escolhido no `EngineConfig` com `"renderer": "gl"`; precisa de `pip install moderngl`
 (o extra `gl` do pacote) e de OpenGL 3.3.
+
+Modo ASCII: `draw_ascii` funciona (desenha na camada 2D); o filtro ASCII
+(`set_ascii_filter`) ainda nao -- o quadro 3D nao passa pela superficie do pygame.
 """
 from __future__ import annotations
 

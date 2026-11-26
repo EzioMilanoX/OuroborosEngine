@@ -3,6 +3,53 @@
 O que mudou na engine, do ponto de vista de quem escreve um jogo sobre ela. O porquê
 de cada marco e os detalhes técnicos ficam no [ROADMAP.md](ROADMAP.md).
 
+## 0.5.0 (2026-11-26)
+
+### Novo: projeções de câmera (`ouroboros.core.projecao`) — M20
+
+- `Projecao(modo, centro=, tela=, zoom=, escala_y=0.62, escala_iso=0.5, escala_z=1.0)` com três
+  modos: `DE_CIMA`, `TRES_QUARTOS` (o chão achatado por `escala_y` e a altura z subindo na
+  tela, as mesmas contas do Ryoiki) e `ISOMETRICA` (chão girado 45° e achatado, o losango 2:1).
+- `tela_de(x, y, z)` / `mundo_de(sx, sy, z=0)` (a inversa no plano da altura z), `tela_x`/
+  `tela_y` (escalar sem tupla), `profundidade(x, y)` (a chave de ordem de desenho, que não
+  depende da câmera) e `centralizar`.
+- Em lote, escrevendo em arrays já alocados: `tela_de_lote`, `mundo_de_lote`,
+  `profundidade_lote` (`reservar(n)` no carregamento e não aloca mais).
+- No chão: `eixos_elipse_chao(raio)`, `pontos_elipse_chao(x, y, raio, out=)` e
+  `sombra(x, y, z, raio)` (encolhe e clareia com a altura).
+- `FilaProfundidade(capacidade)`: `adicionar(id, profundidade, z, camada)` por quadro e
+  `ordenar()` devolve os ids de trás para a frente (profundidade, depois z, depois camada),
+  ordenando no lugar, sem alocar.
+
+### Novo: modo ASCII (`ouroboros.core.ascii` + adapter pygame) — M22
+
+- `TelaAscii(colunas, linhas, cor=, fundo=)`: caracteres, cor de frente e fundo opcional em
+  arrays NumPy; `limpar`, `por`, `texto`, `linha` (escolhe `-|/\` pela inclinação),
+  `retangulo`, `elipse` (cheia ou só a borda) e `sprite`.
+- `SpriteAscii(arte, cor=, cor_por_caractere=, mapa_cores=, paleta=, transparente=" ",
+  ancora=)`: arte de várias linhas, caractere transparente, âncora nos pés e espelho pronto
+  (troca `/`↔`\`, `(`↔`)`, `<`↔`>`, `[`↔`]`…); `AnimacaoAscii(quadros, fps, laco)`.
+- `IRenderer.draw_ascii(tela, x, y, tamanho)` e `ascii_cell_size(tamanho)`: no pygame, fonte
+  monoespaçada com cache de glifos por caractere + cor (nada é renderizado de novo a cada
+  quadro).
+- Filtro ASCII: `IRenderer.set_ascii_filter(FiltroAscii(...))` converte o quadro já desenhado
+  em caracteres pela luminância de cada célula (rampa `" .:-=+*#%@"`), com a cor média da
+  célula, realce, fundo e `area` (deixe o HUD de fora). Desligado por padrão; também liga pelo
+  JSON da configuração (`"ascii_filter": true` ou um objeto com os campos). Ainda não vale no
+  `GLRenderer` (`draw_ascii` vale).
+- Novos métodos da interface não são abstratos (no-op/`None`): nenhum backend quebra.
+
+### Demo: ASCII Knight (`games/ascii_knight/`)
+
+- Cavaleiro em arte ASCII (parado, andando, golpe de espada, pulo; vira para os dois lados) numa
+  arena 3/4 com pilares, árvores, duas gosmas e um morcego, ordenados pela fila de
+  profundidade, com sombra elíptica e pulo. F troca ASCII nativo / filtro ASCII / render
+  normal; P troca a projeção. `python -m games.ascii_knight.main`.
+
+### Ferramentas
+
+- Zero-GC conferido com `gc.callbacks` nos testes de projeção, fila e primitivas ASCII.
+
 ## 0.4.0 (2026-11-24)
 
 ### Novo: colisão 3D (`ouroboros.core.colisao3d`) — M21, passo 1

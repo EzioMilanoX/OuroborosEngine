@@ -1,0 +1,11 @@
+{
+  "esquerda": ["KEY_LEFT", "KEY_A"],
+  "direita": ["KEY_RIGHT", "KEY_D"],
+  "cima": ["KEY_UP", "KEY_W"],
+  "baixo": ["KEY_DOWN", "KEY_S"],
+  "atacar": "KEY_SPACE",
+  "pular": "KEY_J",
+  "modo": "KEY_F",
+  "projecao": "KEY_P",
+  "sair": "KEY_ESCAPE"
+}

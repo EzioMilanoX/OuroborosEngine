@@ -32,13 +32,16 @@ import-linter` e rode com `PYTHONPATH` apontando para ela (sem mexer no Python g
 
 ## Mapa rápido
 - `core/` — World, pools, sistemas 2D, `grid2d`, **`colisao3d/`** (primitivas, `Relevo`,
-  `MundoColisao3D` com grade em x/z e movimento que desliza).
+  `MundoColisao3D` com grade em x/z e movimento que desliza), **`projecao`** (`Projecao` de
+  cima/3/4/isométrica, `FilaProfundidade`) e **`ascii`** (`TelaAscii`, `SpriteAscii`,
+  `FiltroAscii`).
 - `interfaces/` — ABCs (renderer 2D, `renderer3d`, input, áudio), backends nulos e
   **`malhas3d`** (construtores de malha para `IRenderer3D.criar_malha`).
-- `adapters/` — pygame e `gl_backend` (ModernGL, OpenGL 3.3).
+- `adapters/` — pygame (com `ascii_pygame`: glifos em cache e o filtro ASCII) e `gl_backend`
+  (ModernGL, OpenGL 3.3).
 - `bootstrap/` — composição, game loop, cenas, save atômico, **`replay`**.
-- `games/` — vertical slices e a vitrine de estilos (o 3D de CPU em `tres_d.py` ainda tem
-  os construtores antigos).
+- `games/` — vertical slices, a vitrine de estilos (o 3D de CPU em `tres_d.py` ainda tem
+  os construtores antigos) e o `ascii_knight` (demo de projeções e do modo ASCII).
 
 ## Convenções da API 3D
 y para cima; triângulos soltos (sem índice), virados para fora (anti-horário visto de fora).
@@ -47,7 +50,7 @@ engine é em inglês. O `terreno` e o `Relevo` dividem a célula pela mesma diag
 uma sem a outra.
 
 ## Versão e release
-`pyproject.toml` e `ouroboros/__init__.py` em **0.3.0**. Não suba a versão por conta própria:
+`pyproject.toml` e `ouroboros/__init__.py` em **0.5.0**. Não suba a versão por conta própria:
 o que entrar sem release vai em "Ainda sem versão" no CHANGELOG. O BulletHell usa um wheel
 versionado em `BulletHell/wheels/` (CI sem o repo irmão): mudança que ele usa exige rebuild do
 wheel (`BulletHell/tools/build_engine_wheel.ps1`) depois do commit da engine.
